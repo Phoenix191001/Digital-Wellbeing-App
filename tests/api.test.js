@@ -98,7 +98,7 @@ test("leave removes user, posts, replies, reactions", async () => {
 test("misc: not configured, bad input, mod disabled without passcode", async () => {
   assert.equal((await call({ action: "feed" })).status, 401);
   assert.equal((await call({ action: "x", token: await mk("male") })).status, 400);
-  assert.equal((await call({}, "GET")).status, 405);
+  assert.equal((await call({}, "GET")).body.ready, true); assert.equal((await call({}, "PUT")).status, 405);
   const saved = process.env.MOD_PASSCODE; delete process.env.MOD_PASSCODE;
   assert.equal((await call({ action: "modList", pass: "x" })).status, 503); process.env.MOD_PASSCODE = saved;
   const sv = [process.env.PAUSE_MEMORY_STORE, process.env.SUPABASE_URL]; delete process.env.PAUSE_MEMORY_STORE; delete process.env.SUPABASE_URL;

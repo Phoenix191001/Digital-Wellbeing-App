@@ -65,7 +65,8 @@ function upstash(url, token) {
 
 // Supabase (PostgREST) adapter. Needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (server-side only) and supabase.sql applied.
 function supabase(base, key) {
-  const H = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  // New-style keys (sb_secret_...) go in `apikey` only; legacy JWT keys (eyJ...) also go in Authorization.
+  const H = { apikey: key, ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}), "Content-Type": "application/json" };
   const root = base.replace(/\/+$/, "") + "/rest/v1";
   const q = k => encodeURIComponent(k);
   const rpc = async (fn, args) => {

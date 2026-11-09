@@ -12,15 +12,24 @@ module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "application/json");
   const send = (code, obj) => { res.statusCode = code; res.end(J(obj)); };
+  // GET = harmless health check (booleans only): is a database connected and is the schema in place?
+  if (req.method === "GET") return send(200, await health());
   if (req.method !== "POST") return send(405, { error: "method" });
   let b = req.body; if (typeof b === "string") { try { b = JSON.parse(b); } catch { b = null; } }
   if (!b || typeof b !== "object") return send(400, { error: "bad_request" });
   const store = L.getStore();
-  if (b.action === "status") return send(200, { configured: !!store, modConfigured: !!process.env.MOD_PASSCODE });
+  if (b.action === "status") { const h = await health(); return send(200, { configured: h.ready, modConfigured: h.modConfigured }); }
   if (!store) return send(503, { error: "not_configured" });
   try { return send(200, await handle(store, b, req)); }
   catch (e) { if (e.code) return send(e.code, { error: e.message }); console.error("community error", e.message); return send(500, { error: "server" }); }
 };
+
+// "ready" only if a store is configured AND reachable AND the schema exists, otherwise the app uses the safe fallback.
+async function health() {
+  const store = L.getStore(), out = { store: !!store, ready: false, modConfigured: !!process.env.MOD_PASSCODE };
+  if (store) { try { await store.get("health:ping"); out.ready = true; } catch (e) { out.error = "db_unreachable_or_schema_missing"; } }
+  return out;
+}
 
 async function user(store, token) {
   if (typeof token !== "string" || !/^[a-f0-9]{32,64}$/.test(token)) fail(401, "no_user");
