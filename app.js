@@ -2,7 +2,7 @@ import { COUNSELOR, BITES, GROUPS, CHALLENGES, MEET_TIPS, BREAKS, SAFE, FRIEND_M
 
 /* ---------- storage: everything lives on this device only ---------- */
 const KEY = "pause.v1";
-const DEFAULTS = { settings: { size: "m", dark: false, bites: 5, bedtime: "23:30" }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null };
+const DEFAULTS = { settings: { size: "m", dark: true, bites: 5, bedtime: "23:30" }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null };
 let S = load();
 function load() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); return { ...DEFAULTS, ...d, settings: { ...DEFAULTS.settings, ...(d && d.settings) } }; }
