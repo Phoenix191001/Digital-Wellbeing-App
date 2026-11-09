@@ -1,0 +1,5 @@
+{
+  "_help": "Fallback only (used when the live community backend is not connected). Paste a WhatsApp group invite link for each circle, separately for each space. Leave \"\" if there is no group yet.",
+  "female": { "study": "", "coding": "", "gaming": "", "football": "", "reading": "", "art": "", "faith": "", "talk": "" },
+  "male":   { "study": "", "coding": "", "gaming": "", "football": "", "reading": "", "art": "", "faith": "", "talk": "" }
+}

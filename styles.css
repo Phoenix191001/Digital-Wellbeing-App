@@ -45,7 +45,7 @@ nav.tabs a.on{color:var(--hi);font-weight:700}
 .note{display:flex;gap:8px;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line);padding:10px 0}
 .note button{min-height:40px;padding:6px 10px}
 .fullscreen{min-height:70dvh;display:flex;flex-direction:column;justify-content:center}
-@media (prefers-reduced-motion:no-preference){.card{animation:in .25s ease}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
+p a:not(.btn),li a:not(.btn){color:var(--hi)}
 
 .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px;font-size:.78em;font-weight:700;color:var(--mute)}
 .pill svg{width:14px;height:14px;color:var(--hi)}

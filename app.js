@@ -1,3 +1,4 @@
+import { initPeople } from "./people.js";
 import { COUNSELOR, BITES, GROUPS, CHALLENGES, MEET_TIPS, BREAKS, SAFE, FRIEND_MSGS, CHECKLIST } from "./content.js";
 
 /* ---------- storage: everything lives on this device only ---------- */
@@ -92,7 +93,7 @@ function home() {
   const intents = ["Study", "Message someone", "Relax", "Just bored", "Not sure"], feels = ["Bored", "Tired", "Stressed", "Lonely", "Fine"];
   const chips = (arr, key) => `<div class="chips">${arr.map(x => `<button class="${ci[key] === x ? "on" : ""}" data-act="ci" data-arg="${key}|${x}">${x}</button>`).join("")}</div>`;
   const sug = ci.intent ? suggestions() : "";
-  return `<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill">${ICON.lock} Private · stays on this phone</span></div>${header("Pause")}
+  return `<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill">${ICON.lock} Private · your data stays on this phone unless you post in Find your people</span></div>${header("Pause")}
   ${nightNow() ? `<div class="card warm"><b>It's getting late.</b> <a href="#/night">Open your wind-down</a></div>` : ""}
   <div class="card"><h2 style="margin-top:0">What did you come to do?</h2>${chips(intents, "intent")}
     ${ci.intent ? `<h2>How are you feeling? <span class="mute">(optional)</span></h2>${chips(feels, "feeling")}` : ""}</div>
@@ -131,6 +132,7 @@ function doMenu() {
   <a class="card btn block" style="display:block;color:inherit" href="#/focus"><b>🎯 Focus session</b><br><span class="mute">Study with a clear start and end. ${wk} min this week.</span></a>
   <a class="card btn block" style="display:block;color:inherit" href="#/challenges"><b>🌱 Something else to do</b><br><span class="mute">25+ small activities, alone or with a friend.</span></a>
   <a class="card btn block" style="display:block;color:inherit" href="#/play"><b>🎮 Play timer</b><br><span class="mute">Set a limit before you start gaming.</span></a>
+  <a class="card btn block" style="display:block;color:inherit" href="#/people"><b>🫂 Find your people</b><br><span class="mute">A safe, separate-space community. Meet like-minded students and feel heard.</span></a>
   <h2>Ways to meet people</h2><div class="card">${MEET_TIPS.map(t => `<p>• ${t}</p>`).join("")}</div>`;
 }
 
@@ -279,6 +281,7 @@ function settings() {
   <label class="check" style="font-weight:600"><input type="checkbox" data-field="dark" ${s.dark ? "checked" : ""}>Dark mode</label>
   <label for="bc">Cards per reading set: <span id="bcv">${s.bites}</span></label><input id="bc" type="range" min="3" max="10" value="${s.bites}" data-field="bites" style="width:100%;height:32px">
   <label for="bd">Bedtime</label><input id="bd" type="time" value="${s.bedtime}" data-field="bedtime"></div>
+  ${P.settingsBlock()}
   <button class="danger block center" data-act="delAll">Delete all my data</button>`;
 }
 
@@ -286,7 +289,10 @@ function privacy() {
   return `${header("Privacy", "#/me")}<div class="card"><p>Pause stores only these things, <b>on this device</b>:</p>
   <p>• Your settings (text size, dark mode, bedtime)<br>• Focus minutes<br>• Challenges you marked done<br>• Mood notes you wrote<br>• Hours you entered in My week</p>
   <p>Pause has no accounts, no server, no analytics and no trackers. It never asks for your name, phone number, location or contacts. Nobody else can see your data.</p>
-  <p>Delete any of it, or all of it, in Settings.</p></div>`;
+  <p>Delete any of it, or all of it, in Settings.</p></div>
+  <div class="card"><p><b>Everything stays on your phone except what you choose to post in Find your people.</b> That uses a made-up name and can be deleted any time.</p>
+  <p>If you join, Pause's server stores only: a random anonymous id (the secret key is kept on this phone), your made-up display name, your space, the circles you joined, and your posts, replies and reactions. No real name, photo, email or phone number. No analytics. Pause does not keep IP addresses; our host may process them briefly to deliver the page.</p>
+  <p>To remove it all, use <b>Leave community and delete my posts</b> in Me, then Settings.</p></div>`;
 }
 
 function guide() {
@@ -308,7 +314,7 @@ function render() {
   const fn = name === "onboard" ? onboard : MAIN[name] || home;
   const focusing = timer() && timer().kind === "focus" && name === "focus";
   const bare = name === "onboard" || focusing || name === "talk";
-  const tab = { challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
+  const tab = { challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
   $("#app").innerHTML = fn() + (name === "onboard" ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
     ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}</div></nav>`}`)
     + (toastMsg ? `<div role="status" style="position:fixed;top:12px;left:12px;right:12px;max-width:456px;margin:auto;background:var(--ink);color:var(--bg);padding:12px;border-radius:12px;z-index:9">${esc(toastMsg)}</div>` : "");
@@ -342,8 +348,10 @@ const A = {
     S.week.push({ date: d, phone: p === "" ? null : +p, sleep: s === "" ? null : +s }); save(); toast("Saved on this phone.");
   },
   delWeek: () => { if (confirm("Delete your My week data?")) { S.week = []; save(); render(); } },
-  delAll: () => { if (confirm("Delete all your data from this phone?")) { localStorage.removeItem(KEY); S = structuredClone(DEFAULTS); applySettings(); go("#/onboard"); render(); } },
+  delAll: async () => { if (confirm("Delete all your data from this phone?")) { if (P.isJoined() && !(await P.leaveSilently())) return toast("Could not reach the server to delete your community posts. Try again online."); localStorage.removeItem(KEY); S = structuredClone(DEFAULTS); applySettings(); go("#/onboard"); render(); } },
 };
+const P = initPeople({ esc, header, render, go, toast, getS: () => S, save });
+Object.assign(A, P.actions); MAIN.people = P.people; MAIN.mod = P.mod;
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]"); if (g) { history.length > 1 ? history.back() : go(g.dataset.go); return; }
   const b = e.target.closest("[data-act]"); if (b && A[b.dataset.act]) A[b.dataset.act](b.dataset.arg);
