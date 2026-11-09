@@ -25,12 +25,16 @@ Import the repo in Vercel as a static site (no build command, no framework). `ve
 Safe, **space-separated** (female / male, self-declared) interest circles. Anonymous made-up names, plain-text posts (280 chars), reactions "🤝 I relate" / "💛 Thanks", replies, reports (3 different reports hide an item), self-harm text is never published (the author is shown *Talk to someone*), links/phone numbers/emails/@handles are blocked, 5 posts per hour.
 
 **Two modes, chosen automatically:**
-1. **Live** (when a Redis store is connected): `api/community.js` + Upstash Redis. The viewer's space is read from the server-side user record, never from the request, so spaces cannot be crossed by editing URLs or API calls.
-2. **Fallback** (no store connected): no open posting. Each circle shows a "Join this circle's WhatsApp group" button per space, from `community-links.json`, plus rules and report instructions.
+1. **Live** (when a database is connected): `api/community.js` stores everything in **Supabase** (Postgres). The viewer's space is read from the server-side user record, never from the request, so spaces cannot be crossed by editing URLs or API calls. The browser never talks to Supabase directly; only the server function uses the secret key, and the table has Row Level Security on with no policies, so the public anon key can read nothing.
+2. **Fallback** (no database connected): no open posting. Each circle shows a "Join this circle's WhatsApp group" button per space, from `community-links.json`, plus rules and report instructions.
 
-**Turn on live mode (Vercel dashboard):**
-1. Project → Storage → Create/Connect **Upstash Redis** (free) → connect to this project. It adds `KV_REST_API_URL` / `KV_REST_API_TOKEN` automatically.
-2. Project → Settings → Environment Variables → add `MOD_PASSCODE` (a long passcode only you know).
-3. Redeploy. Moderator page: `#/mod` (not linked anywhere).
+**Turn on live mode with Supabase:**
+1. Create a free project at supabase.com.
+2. Supabase -> SQL Editor -> New query -> paste all of `supabase.sql` -> Run.
+3. Supabase -> Project Settings -> API: copy the **Project URL** and the **service_role** key (secret: server only, never in the app code or chat).
+4. Vercel -> project -> Settings -> Environment Variables (Production): add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `MOD_PASSCODE` (a long passcode only you know).
+5. Redeploy. Moderator page: `#/mod` (not linked anywhere).
 
-**Tests:** `node --test tests/api.test.js` (API rules) and, with `PORT=8124 node tests/server.js` running, `node tests/ui.test.js` (browser flows; needs Playwright).
+(Upstash Redis is also supported through `KV_REST_API_URL` / `KV_REST_API_TOKEN`; Supabase takes priority if both are set.)
+
+**Tests:** `node --test tests/api.test.js` (API rules, in-memory store). `TEST_SUPABASE=1` runs the same tests through the Supabase adapter against a real Postgres via `tests/pgshim.js`. With `PORT=8124 node tests/server.js` running, `node tests/ui.test.js` runs the browser flows (needs Playwright).

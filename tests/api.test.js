@@ -1,5 +1,7 @@
 // Run: node --test tests/
-process.env.PAUSE_MEMORY_STORE = "1"; process.env.MOD_PASSCODE = "test-pass";
+// Default: in-memory store. With TEST_SUPABASE=1: real Postgres through tests/pgshim.js (SUPABASE_URL=http://localhost:8130).
+if (process.env.TEST_SUPABASE === "1") { process.env.SUPABASE_URL = "http://localhost:8130"; process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key"; } else process.env.PAUSE_MEMORY_STORE = "1";
+process.env.MOD_PASSCODE = "test-pass";
 const test = require("node:test"), assert = require("node:assert/strict"), crypto = require("crypto");
 const handler = require("../api/community.js");
 const call = (body, method = "POST") => new Promise(r => {
@@ -90,8 +92,7 @@ test("leave removes user, posts, replies, reactions", async () => {
   const f = await feed(b, "reading"); assert.equal(f.length, 1); assert.equal(f[0].replies.length, 0); assert.equal(f[0].thanks, false); assert.equal(f[0].someoneRelates || f[0].someoneThanks, false);
   assert.equal((await call({ action: "me", token: a })).status, 401);
   assert.equal((await call({ action: "post", token: a, circle: "reading", text: "ghost" })).status, 401);
-  const { memoryStore } = require("../api/_lib.js");
-  assert.equal(await memoryStore.get("post:" + pa.id), null);
+  assert.equal(await require("../api/_lib.js").getStore().get("post:" + pa.id), null);
 });
 
 test("misc: not configured, bad input, mod disabled without passcode", async () => {
@@ -100,8 +101,8 @@ test("misc: not configured, bad input, mod disabled without passcode", async () 
   assert.equal((await call({}, "GET")).status, 405);
   const saved = process.env.MOD_PASSCODE; delete process.env.MOD_PASSCODE;
   assert.equal((await call({ action: "modList", pass: "x" })).status, 503); process.env.MOD_PASSCODE = saved;
-  delete process.env.PAUSE_MEMORY_STORE;
+  const sv = [process.env.PAUSE_MEMORY_STORE, process.env.SUPABASE_URL]; delete process.env.PAUSE_MEMORY_STORE; delete process.env.SUPABASE_URL;
   assert.equal((await call({ action: "status" })).body.configured, false);
   assert.equal((await call({ action: "feed", token: tok() })).status, 503);
-  process.env.PAUSE_MEMORY_STORE = "1";
+  if (sv[0]) process.env.PAUSE_MEMORY_STORE = sv[0]; if (sv[1]) process.env.SUPABASE_URL = sv[1];
 });

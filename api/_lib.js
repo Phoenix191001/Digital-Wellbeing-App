@@ -62,8 +62,46 @@ function upstash(url, token) {
     incr: k => cmd("INCR", k), expire: (k, s) => cmd("EXPIRE", k, s),
   };
 }
+
+// Supabase (PostgREST) adapter. Needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (server-side only) and supabase.sql applied.
+function supabase(base, key) {
+  const H = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const root = base.replace(/\/+$/, "") + "/rest/v1";
+  const q = k => encodeURIComponent(k);
+  const rpc = async (fn, args) => {
+    const r = await fetch(`${root}/rpc/${fn}`, { method: "POST", headers: H, body: JSON.stringify(args) });
+    if (!r.ok) throw new Error(`supabase rpc ${fn} ${r.status}`);
+    const t = await r.text(); return t ? JSON.parse(t) : null;
+  };
+  const get = async k => {
+    const r = await fetch(`${root}/pause_kv?key=eq.${q(k)}&select=value,expires_at`, { headers: H });
+    if (!r.ok) throw new Error("supabase get " + r.status);
+    const [row] = await r.json();
+    if (!row) return null;
+    if (row.expires_at && new Date(row.expires_at) < new Date()) return null;
+    return row.value;
+  };
+  const arr = async k => { const v = await get(k); return v ? JSON.parse(v) : []; };
+  return {
+    get,
+    async set(k, v) {
+      const r = await fetch(`${root}/pause_kv?on_conflict=key`, { method: "POST", headers: { ...H, Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ key: k, value: String(v), expires_at: null }) });
+      if (!r.ok) throw new Error("supabase set " + r.status);
+    },
+    async del(k) { const r = await fetch(`${root}/pause_kv?key=eq.${q(k)}`, { method: "DELETE", headers: { ...H, Prefer: "return=minimal" } }); if (!r.ok) throw new Error("supabase del " + r.status); },
+    lpush: (k, v) => rpc("pause_lpush", { k, v }),
+    lrem: (k, v) => rpc("pause_lrem", { k, v }),
+    sadd: (k, v) => rpc("pause_sadd", { k, v }),
+    srem: (k, v) => rpc("pause_lrem", { k, v }),
+    async lrange(k, s, e) { const a = await arr(k); return a.slice(s, e === -1 ? undefined : e + 1); },
+    smembers: arr,
+    incr: k => rpc("pause_incr", { k, ttl: 3600 }),
+    async expire() {}, // the window is set atomically inside pause_incr
+  };
+}
 function getStore() {
   if (process.env.PAUSE_MEMORY_STORE === "1") return memoryStore;
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) return supabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   return url && token ? upstash(url, token) : null;
