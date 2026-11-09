@@ -28,6 +28,23 @@ let focusSetup = { min: 25 };
 let playSetup = { min: 30 };
 let toastMsg = "";
 
+
+const I = (p, w = 2) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const ICON = {
+  home: I('<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>'),
+  do: I('<path d="M12 21v-8"/><path d="M12 13c0-4 3-6 8-6 0 4-3 6-8 6z"/><path d="M12 15c0-3-2-5-7-5 0 3 2 5 7 5z"/>'),
+  read: I('<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2z"/><path d="M4 21V5"/>'),
+  safe: I('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+  me: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),
+  pause: I('<rect x="6" y="4" width="4" height="16" rx="1.5"/><rect x="14" y="4" width="4" height="16" rx="1.5"/>', 2.4),
+  target: I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>'),
+  check: I('<path d="M5 12l5 5 9-10"/>', 2.6),
+  lock: I('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>', 2),
+  game: I('<rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 10v5M4.5 12.5h5"/><circle cx="16" cy="11.5" r=".8"/><circle cx="18.5" cy="13.5" r=".8"/>'),
+};
+const hero = (ic, title, sub) => `<div class="hero"><div class="tile">${ICON[ic]}</div><h1>${title}</h1><p class="mute">${sub}</p></div>`;
+const countdown = (label, cap) => `<div class="cd"><div class="lbl">${label}</div><div class="big" id="tm">${fmt(timeLeft())}</div><div class="cap">${cap}</div></div>`;
+
 /* ---------- timer ---------- */
 // timer = { kind, total (s), endAt (ms) | null, left (s) when paused, goal }
 const timer = () => S.timer;
@@ -48,9 +65,9 @@ function toast(m) { toastMsg = m; render(); setTimeout(() => { toastMsg = ""; re
 /* ---------- routing ---------- */
 const route = () => (location.hash.replace(/^#/, "") || "/").split("/").filter(Boolean);
 const go = h => { location.hash = h; };
-window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+window.addEventListener("hashchange", () => { render(); $("#app").scrollTop = 0; });
 
-const TABS = [["", "🏠", "Home"], ["do", "🌱", "Do"], ["read", "📖", "Read"], ["safe", "🛡️", "Stay safe"], ["me", "👤", "Me"]];
+const TABS = [["", "home", "Home"], ["do", "do", "Do"], ["read", "read", "Read"], ["safe", "safe", "Stay safe"], ["me", "me", "Me"]];
 const header = (title, back) => `<div class="top">${back ? `<button class="back ghost" data-go="${back}" aria-label="Back">←</button>` : ""}<h1>${title}</h1></div>`;
 
 /* ---------- screens ---------- */
@@ -75,7 +92,7 @@ function home() {
   const intents = ["Study", "Message someone", "Relax", "Just bored", "Not sure"], feels = ["Bored", "Tired", "Stressed", "Lonely", "Fine"];
   const chips = (arr, key) => `<div class="chips">${arr.map(x => `<button class="${ci[key] === x ? "on" : ""}" data-act="ci" data-arg="${key}|${x}">${x}</button>`).join("")}</div>`;
   const sug = ci.intent ? suggestions() : "";
-  return `${header("Pause")}
+  return `<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill">${ICON.lock} Private · stays on this phone</span></div>${header("Pause")}
   ${nightNow() ? `<div class="card warm"><b>It's getting late.</b> <a href="#/night">Open your wind-down</a></div>` : ""}
   <div class="card"><h2 style="margin-top:0">What did you come to do?</h2>${chips(intents, "intent")}
     ${ci.intent ? `<h2>How are you feeling? <span class="mute">(optional)</span></h2>${chips(feels, "feeling")}` : ""}</div>
@@ -101,12 +118,11 @@ function suggestions() {
 
 function scrollTimer() {
   const t = timer();
-  if (!t || t.kind !== "scroll") return `<div class="fullscreen center"><p>No timer is running.</p><a class="btn primary" href="#/">Back to Home</a></div>`;
-  if (timeLeft() <= 0) return `<div class="fullscreen center"><h1>Ten minutes are up.</h1><p>Stop, or choose 5 more?</p>
-    <button class="primary block center" data-act="stopTimer">I'll stop now</button>
-    <button class="block center" data-act="startScroll" data-arg="5">5 more minutes</button></div>`;
-  return `<div class="fullscreen center"><p>Scroll time. We'll tell you when it's up.</p><div class="big" id="tm">${fmt(timeLeft())}</div>
-    <button class="block center" data-act="stopTimer">End early</button><p class="mute">Keep this page open, and set a phone alarm too.</p></div>`;
+  if (!t || t.kind !== "scroll") return `<div class="screen"><p>No timer is running.</p><a class="btn primary wide" href="#/">Back to Home</a></div>`;
+  if (timeLeft() <= 0) return `<div class="screen">${hero("pause", "Time's up.", "Stop, or choose 5 more?")}
+    <button class="primary wide" data-act="stopTimer">I'll stop now</button><button class="wide" data-act="startScroll" data-arg="5">5 more minutes</button></div>`;
+  return `<div class="screen"><div><span class="pill">${ICON.lock} Planned scroll</span></div>${hero("pause", "Scroll time", "We'll tell you when it's up.")}
+    ${countdown("SCROLL COUNTDOWN", "Keep this page open · also set a phone alarm")}<button class="wide" data-act="stopTimer">Return to Home</button></div>`;
 }
 
 function doMenu() {
@@ -137,9 +153,9 @@ function focusRun() {
     return focusDone();
   }
   const paused = !t.endAt;
-  return `<div class="fullscreen center"><p class="mute">Your goal</p><h2 style="margin-top:0">${esc(t.goal || "Focus")}</h2><div class="big" id="tm">${fmt(timeLeft())}</div>
-    <button class="block center" data-act="${paused ? "resumeFocus" : "pauseFocus"}">${paused ? "Resume session" : "Pause session"}</button>
-    <button class="ghost block center" data-act="stopTimer" data-arg="#/focus">End session</button></div>`;
+  return `<div class="screen">${hero("target", esc(t.goal || "Focus"), "Your goal for this session")}${countdown("FOCUS COUNTDOWN", paused ? "Paused" : "Stay with it")}
+    <button class="primary wide" data-act="${paused ? "resumeFocus" : "pauseFocus"}">${paused ? "Resume session" : "Pause session"}</button>
+    <button class="ghost wide" data-act="stopTimer" data-arg="#/focus">End session</button></div>`;
 }
 function focusDone() {
   const wk = S.focus.filter(f => f.ts >= weekStart()).reduce((a, f) => a + f.min, 0);
@@ -151,9 +167,9 @@ function focusDone() {
 function play() {
   const t = timer();
   if (t && t.kind === "play") {
-    if (timeLeft() <= 0) return `<div class="fullscreen center"><h1>Time's up.</h1><p>You set this limit for yourself. Nice job noticing.</p><p class="mute">Stretch, drink some water, or try something else.</p>
-      <button class="primary block center" data-act="stopTimer" data-arg="#/challenges">Something else to do</button><button class="block center" data-act="stopTimer" data-arg="#/">Done</button></div>`;
-    return `<div class="fullscreen center"><p>Playing. Limit you set:</p><div class="big" id="tm">${fmt(timeLeft())}</div><button class="ghost block center" data-act="stopTimer" data-arg="#/do">End early</button></div>`;
+    if (timeLeft() <= 0) return `<div class="screen">${hero("game", "Time's up.", "You set this limit yourself. Nice job noticing.")}
+      <button class="primary wide" data-act="stopTimer" data-arg="#/challenges">Something else to do</button><button class="wide" data-act="stopTimer" data-arg="#/">Done</button></div>`;
+    return `<div class="screen">${hero("game", "Playing", "Enjoy it. You set the limit.")}${countdown("PLAY COUNTDOWN", "Calm reminder when it ends")}<button class="ghost wide" data-act="stopTimer" data-arg="#/do">Return to Do</button></div>`;
   }
   return `${header("Play timer", "#/do")}<div class="card"><p>Set a limit before you start playing.</p><div class="chips">${[15, 30, 60, 90].map(m => `<button class="${playSetup.min === m ? "on" : ""}" data-act="pmin" data-arg="${m}">${m} min</button>`).join("")}</div>
   <button class="primary block center" style="margin-top:16px" data-act="startPlay">Start</button></div><p class="mute">The timer runs only while Pause is open. Set a phone alarm too.</p>`;
@@ -184,8 +200,8 @@ function read() {
     <input type="range" min="3" max="10" value="${bites.n}" data-range="bites" style="width:100%;height:32px"><button class="primary block center" data-act="startBites">Start</button></div>`;
 }
 function bitesRun() {
-  if (bites.idx >= bites.set.length) return `<div class="fullscreen center"><h1>You're done for now.</h1><p>Here's something to do:</p>
-    <a class="btn primary block center" href="#/challenges">Pick a small activity</a><a class="btn block center" href="#/">Back to Home</a></div>`;
+  if (bites.idx >= bites.set.length) return `<div class="screen">${hero("check", "You're done for now.", "Here's something to do:")}
+    <a class="btn primary wide" href="#/challenges">Pick a small activity</a><a class="btn wide" href="#/">Back to Home</a></div>`;
   const b = bites.set[bites.idx];
   return `<p class="mute">${bites.idx + 1} of ${bites.set.length}</p><div class="progress"><i style="width:${((bites.idx + 1) / bites.set.length) * 100}%"></i></div>
   <div class="card"><span class="tag">${b.t}</span><h2 style="margin-top:0">${b.h}</h2><p>${b.b}</p></div>
@@ -294,7 +310,7 @@ function render() {
   const bare = name === "onboard" || focusing || name === "talk";
   const tab = { challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
   $("#app").innerHTML = fn() + (name === "onboard" ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
-    ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}><span aria-hidden="true">${i}</span>${l}</a>`).join("")}</div></nav>`}`)
+    ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}</div></nav>`}`)
     + (toastMsg ? `<div role="status" style="position:fixed;top:12px;left:12px;right:12px;max-width:456px;margin:auto;background:var(--ink);color:var(--bg);padding:12px;border-radius:12px;z-index:9">${esc(toastMsg)}</div>` : "");
 }
 
@@ -315,7 +331,7 @@ const A = {
   didIt: a => { S.done.push({ ts: Date.now(), id: a }); save(); toast("Nice. Logged privately."); },
   invite: a => { const c = CHALLENGES.find(x => x.id === a); share(`Want to try this with me? ${c.t} (${c.m} min)`); },
   startBites: () => { bites.set = [...BITES].sort(() => Math.random() - .5).slice(0, S.settings.bites); bites.idx = 0; go("#/read/go"); render(); },
-  nextBite: () => { bites.idx++; render(); window.scrollTo(0, 0); },
+  nextBite: () => { bites.idx++; render(); $("#app").scrollTop = 0; },
   shareMsg: a => share(FRIEND_MSGS[+a]),
   addNote: () => { const v = $("#nt").value.trim(); if (!v) return; S.notes.unshift({ ts: Date.now(), text: v }); save(); render(); },
   delNote: a => { S.notes.splice(+a, 1); save(); render(); },
