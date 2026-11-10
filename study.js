@@ -88,8 +88,8 @@ export function initStudy(c) {
       ${t.label ? `<h2>${esc(t.label)}</h2>` : `<h2>${work ? "Stay with it" : "Rest your eyes"}</h2>`}
       ${ring(t, work ? "#ff5a5f" : "#22c55e")}
       ${work ? "" : `<p class="mute">${["Stretch 🙆", "Drink some water 💧", "Look out of a window 🪟", "Step outside 🌤️"][t.round % 4]}. Not a feed.</p>`}
-      <div class="row"><button class="primary" data-act="${paused ? "pomoResume" : "pomoPause"}">${paused ? "▶️ Resume" : "⏸️ Pause"}</button><button data-act="pomoSkip">⏭️ Skip</button></div>
-      <button class="ghost wide" data-act="pomoStop">End session</button></div>`;
+      ${t.strict && work ? `<p class="mute">🔒 Strict mode · stay with it</p><button class="ghost wide" data-act="pomoEmergency">Emergency stop</button></div>` : `<div class="row"><button class="primary" data-act="${paused ? "pomoResume" : "pomoPause"}">${paused ? "▶️ Resume" : "⏸️ Pause"}</button><button data-act="pomoSkip">⏭️ Skip</button></div>
+      <button class="ghost wide" data-act="pomoStop">End session</button></div>`}`;
   }
   function finishPhase(t, skipped) {
     const p = S().pomo; if (!skipped) chime();
@@ -186,7 +186,7 @@ export function initStudy(c) {
   }
 
   /* ---------- actions ---------- */
-  const pomoTimer = (phase, round, goal, label) => { const p = S().pomo, m = phase === "work" ? p.work : phase === "long" ? p.long : p.short; S().timer = { kind: "pomo", phase, round, goal, label, total: m * 60, endAt: Date.now() + m * 60000, left: 0 }; c.save(); };
+  const pomoTimer = (phase, round, goal, label) => { const p = S().pomo, m = phase === "work" ? p.work : phase === "long" ? p.long : p.short; S().timer = { kind: "pomo", phase, round, goal, label, total: m * 60, endAt: Date.now() + m * 60000, left: 0, strict: !!S().settings.strict }; c.save(); };
   const actions = {
     pomoPreset: a => { const [, w, s, l] = PRESETS.find(x => x[0] === a); Object.assign(S().pomo, { work: w, short: s, long: l }); c.save(); render(); },
     pomoGoal: a => { setup.goal = a; render(); },
@@ -198,6 +198,7 @@ export function initStudy(c) {
     pomoGo: a => { const t = S().timer; if (a === "skipbreak") pomoTimer("work", t.round + 1, t.goal, t.label); else pomoTimer(a, a === "work" ? t.round : t.round, t.goal, t.label); render(); },
     pomoFinish: () => { S().timer = { kind: "pomoNext", next: "done", round: S().timer.round }; c.save(); render(); },
     pomoClear: () => { c.clearTimer(); },
+    pomoEmergency: () => { if (confirm("Strict mode is on. Stop this session anyway? That's okay if you need to.")) actions.pomoStop(); },
     taskAdd: () => { const el = document.getElementById("tk"), v = el.value.trim(); if (!v) return; S().tasks.push(touch({ id: uid(), text: v, done: false, date: today() })); c.save(); render(); setTimeout(() => document.getElementById("tk")?.focus(), 0); },
     taskDel: a => { const x = S().tasks.find(t => t.id === a); if (x) { touch(x).del = true; c.save(); render(); } },
     goalEmoji: a => { goalDraft.emoji = a; render(); },

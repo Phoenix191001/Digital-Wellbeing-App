@@ -2,14 +2,16 @@ import { initPeople } from "./people.js";
 import { initStudy } from "./study.js";
 import { initWell } from "./wellbeing.js";
 import { initAuth } from "./auth.js";
+import { initInsights } from "./insights.js";
 import { COUNSELOR, BITES, GROUPS, CHALLENGES, MEET_TIPS, BREAKS, SAFE, FRIEND_MSGS, CHECKLIST } from "./content.js";
 
 /* ---------- storage: everything lives on this device only ---------- */
 const KEY = "pause.v1";
 const DEFAULTS = {
-  settings: { size: "m", dark: true, bites: 5, bedtime: "23:30", syncNotes: false }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null,
+  settings: { size: "m", dark: true, theme: "red", bites: 5, bedtime: "23:30", syncNotes: false, goal: 180, strict: false }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null,
   profile: { name: "" }, pomo: { work: 25, short: 5, long: 15, rounds: 4, sound: true }, goals: [], tasks: [], decks: [], reviews: [],
   usage: {}, limits: {}, sleepLog: [], sleepStart: null, mood: {}, checkins: [], pauseTime: {}, tomb: [],
+  why: "", notNow: [], badges: {}, nightDone: {}, flags: {},
 };
 let S = load();
 function load() {
@@ -17,8 +19,8 @@ function load() {
   catch { return structuredClone(DEFAULTS); }
 }
 const saveLocal = () => localStorage.setItem(KEY, JSON.stringify(S));
-const save = () => { saveLocal(); if (AU) AU.queue(); };
-let AU = null;
+const save = () => { saveLocal(); if (AU) AU.queue(); if (IN) IN.checkBadges(); };
+let AU = null, IN = null;
 const uid = () => [...crypto.getRandomValues(new Uint8Array(6))].map(x => x.toString(16).padStart(2, "0")).join("");
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -29,6 +31,8 @@ function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d
 function applySettings() {
   document.documentElement.dataset.dark = S.settings.dark ? "1" : "0";
   document.documentElement.dataset.size = S.settings.size;
+  document.documentElement.dataset.theme = S.settings.theme || "red";
+  const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = S.settings.theme === "midnight" ? (S.settings.dark ? "#10132a" : "#f4f5ff") : (S.settings.dark ? "#0b0b0c" : "#c8102e");
 }
 
 /* ---------- transient state (not stored) ---------- */
@@ -114,9 +118,11 @@ function home() {
     <a class="avatar sm" href="#/${AU.signedIn() ? "account" : "me"}" aria-label="Me">${esc((S.profile.name || "🙂")[0].toUpperCase())}</a></div>
   <span class="pill">${ICON.lock} Private · stays on this phone unless you sign in or post</span>
   ${nightNow() ? `<a class="card btn block feature" href="#/sleep"><span class="fi f-purple">🌙</span><span><b>It's getting late</b><br><span class="mute">Open your wind-down or sleep sounds</span></span></a>` : ""}
-  <div class="card checkin"><h2 style="margin-top:0">⏸️ What did you come to do?</h2>${chips(intents, "intent")}
-    ${ci.intent ? `<h2>How are you feeling? <span class="mute">(optional)</span></h2>${chips(feels, "feeling")}` : ""}</div>
+  <div class="card checkin"><h2 style="margin-top:0">⏸️ What did you come to do?</h2>${S.why ? `<p class="whyline">💭 Your why: “${esc(S.why)}”</p>` : ""}${chips(intents, "intent")}
+    ${ci.intent ? `<h2>How are you feeling? <span class="mute">(optional)</span></h2>${chips(feels, "feeling")}` : ""}
+    <button class="ghost wide" style="margin-bottom:0" data-act="notNow">🙌 Not now, I'll put my phone down</button></div>
   ${sug}
+  ${IN.today()}
   ${WB.moodRow()}
   <div class="grid2">
     <a class="qt q-red" href="#/pomo"><span>🍅</span><b>Pomodoro</b><small>${ST.todayMin() ? ST.hm(ST.todayMin()) + " today" : "Start focusing"}</small></a>
@@ -150,8 +156,8 @@ function suggestions() {
 function scrollTimer() {
   const t = timer();
   if (!t || t.kind !== "scroll") return `<div class="screen"><p>No timer is running.</p><a class="btn primary wide" href="#/">Back to Home</a></div>`;
-  if (timeLeft() <= 0) return `<div class="screen">${hero("pause", "Time's up.", "Stop, or choose 5 more?")}
-    <button class="primary wide" data-act="stopTimer">I'll stop now</button><button class="wide" data-act="startScroll" data-arg="5">5 more minutes</button></div>`;
+  if (timeLeft() <= 0) return `<div class="screen">${hero("pause", "Time's up.", "Stop, or choose 5 more?")}${S.why ? `<p class="whyline">💭 “${esc(S.why)}”</p>` : ""}
+    <button class="primary wide" data-act="stopScroll">I'll stop now</button><button class="wide" data-act="startScroll" data-arg="5">5 more minutes</button></div>`;
   return `<div class="screen"><div><span class="pill">${ICON.lock} Planned scroll</span></div>${hero("pause", "Scroll time", "We'll tell you when it's up.")}
     ${countdown("SCROLL COUNTDOWN", "Keep this page open · also set a phone alarm")}<button class="wide" data-act="stopTimer">Return to Home</button></div>`;
 }
@@ -169,10 +175,17 @@ function doMenu() {
 function focusPage() {
   const sub = route()[1], t = timer();
   if (sub === "run" || (t && t.kind === "focus")) return focusRun();
-  return `${header("Focus session", "#/do")}
-  <div class="card"><label>How long?</label><div class="chips">${[10, 25, 45].map(m => `<button class="${focusSetup.min === m ? "on" : ""}" data-act="fmin" data-arg="${m}">${m} min</button>`).join("")}</div>
-  <label for="goal">One goal for this session</label><input id="goal" type="text" maxlength="100" placeholder="e.g. finish lab report intro" autocomplete="off">
-  <button class="primary block center" style="margin-top:16px" data-act="startFocus">Start</button></div>
+  const d0 = new Date().setHours(0, 0, 0, 0), wk = Date.now() - 7 * 86400000;
+  const todayM = S.focus.filter(f => f.ts >= d0).reduce((a, f) => a + f.min, 0), w = S.focus.filter(f => f.ts >= wk), wkM = w.reduce((a, f) => a + f.min, 0);
+  const hmm = m => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`), custom = ![10, 15, 25, 45, 60, 90].includes(focusSetup.min);
+  return `${header("Focus 🎯", "#/study")}<p class="mute" style="margin-top:-6px">One goal, a clear start and end</p>
+  <div class="sgrid"><div><small>Focused today</small><b>${hmm(todayM)}</b></div><div><small>Last 7 days</small><b>${hmm(wkM)}</b><span>${w.length} session${w.length === 1 ? "" : "s"}</span></div></div>
+  <div class="card"><small class="mute">Duration</small><div class="dur">${focusSetup.min}m</div>
+    <div class="chips">${[10, 15, 25, 45, 60, 90].map(m => `<button class="${focusSetup.min === m ? "on" : ""}" data-act="fmin" data-arg="${m}">${m} min</button>`).join("")}<button class="${custom ? "on" : ""}" data-act="fcustom">Custom</button></div>
+    ${custom ? `<label for="fcm">Minutes</label><input id="fcm" type="number" min="5" max="180" value="${focusSetup.min}" data-fcustom="1">` : ""}</div>
+  <div class="card"><label for="goal" style="margin-top:0">One goal for this session</label><input id="goal" type="text" maxlength="100" placeholder="e.g. finish lab report intro" autocomplete="off"></div>
+  <div class="sgroup">${row("🔒", "Strict mode", "No pausing until the timer ends", "", sw("strict", S.settings.strict))}</div>
+  <button class="primary bigstart" data-act="startFocus">▶ Start ${focusSetup.min}m focus</button>
   <div class="card warm"><b>Tip:</b> Mute notifications while you study. <a href="#/safe/notif">See the guide</a></div>`;
 }
 function focusRun() {
@@ -185,9 +198,9 @@ function focusRun() {
     return focusDone();
   }
   const paused = !t.endAt;
-  return `<div class="screen">${hero("target", esc(t.goal || "Focus"), "Your goal for this session")}${countdown("FOCUS COUNTDOWN", paused ? "Paused" : "Stay with it")}
-    <button class="primary wide" data-act="${paused ? "resumeFocus" : "pauseFocus"}">${paused ? "Resume session" : "Pause session"}</button>
-    <button class="ghost wide" data-act="stopTimer" data-arg="#/focus">End session</button></div>`;
+  return `<div class="screen">${hero("target", esc(t.goal || "Focus"), "Your goal for this session")}${countdown("FOCUS COUNTDOWN", t.strict ? "🔒 Strict mode · stay with it" : paused ? "Paused" : "Stay with it")}
+    ${t.strict ? `<button class="ghost wide" data-act="emergencyStop">Emergency stop</button>` : `<button class="primary wide" data-act="${paused ? "resumeFocus" : "pauseFocus"}">${paused ? "Resume session" : "Pause session"}</button>
+    <button class="ghost wide" data-act="stopTimer" data-arg="#/focus">End session</button>`}</div>`;
 }
 function focusDone() {
   const wk = S.focus.filter(f => f.ts >= weekStart()).reduce((a, f) => a + f.min, 0);
@@ -263,17 +276,20 @@ function talk() {
 }
 
 function me() {
-  const u = AU.user(), n = S.profile.name || (u && u.name) || "";
+  const u = AU.user(), n = S.profile.name || (u && u.name) || "", [bw, bt] = IN.badgeCount();
   return `${header("Me")}
   <a class="card btn block feature" href="#/account"><span class="avatar">${esc((n || (u && u.email) || "🙂")[0].toUpperCase())}</span><span style="flex:1"><b>${u ? esc(n || "Your account") : "Create an account"}</b><br><span class="mute">${u ? `☁️ Backed up · ${esc(u.email || "")}` : "Optional · back up and sync your progress"}</span></span></a>
   <div class="grid2">
+    <a class="qt q-blue" href="#/insights"><span>📈</span><b>Insights</b><small>Charts & trends</small></a>
+    <a class="qt q-amber" href="#/achievements"><span>🏆</span><b>Achievements</b><small>${bw} of ${bt} unlocked</small></a>
     <a class="qt q-purple" href="#/sleep"><span>😴</span><b>Sleep</b><small>Timer, sounds, log</small></a>
-    <a class="qt q-teal" href="#/usage"><span>📊</span><b>App usage</b><small>Track your time</small></a>
-    <a class="qt q-blue" href="#/week"><span>📅</span><b>My week</b><small>Calm summary</small></a>
-    <a class="qt q-dim" href="#/night"><span>🌙</span><b>Wind-down</b><small>Bedtime checklist</small></a>
+    <a class="qt q-teal" href="#/usage"><span>📊</span><b>App usage</b><small>Log your time</small></a>
+    <a class="qt q-red" href="#/limits"><span>⏳</span><b>Limits</b><small>Daily allowances</small></a>
+    <a class="qt q-dim" href="#/week"><span>📅</span><b>My week</b><small>Calm summary</small></a>
   </div>
-  ${[["#/notes", "📝", "Private mood notes"], ["#/settings", "⚙️", "Settings"], ["#/privacy", "🔒", "Privacy"], ["#/guide", "📘", "User guide"]]
-    .map(([h, e, t]) => `<a class="card btn block feature" href="${h}"><span class="fi f-dim">${e}</span><b>${t}</b></a>`).join("")}`;
+  ${group("Guide", [row("🧭", "App tour", "Problem → feature → set it up", "#/tour"), row("💡", "How Pause helps", "Which feature solves which problem", "#/helps"), row("📘", "User guide", "Getting started", "#/guide")])}
+  ${group("Healthy habits", [row("🌙", "Night routine", `Bedtime ${S.settings.bedtime}`, "#/night"), row("📝", "Private mood notes", "Only on this phone", "#/notes"), row("💬", "Talk to someone", "Counselor and trusted friends", "#/talk")])}
+  ${group("More", [row("⚙️", "Settings", "Theme, goals, focus, data", "#/settings"), row("🔒", "Privacy", "What Pause stores", "#/privacy")])}`;
 }
 
 function night() {
@@ -313,13 +329,31 @@ function notes() {
   ${S.notes.length ? '<button class="ghost block center" data-act="delNotes">Delete all notes</button>' : '<p class="mute">No notes yet.</p>'}`;
 }
 
+const row = (ic, t, sub, href, right) => `<${href ? `a href="${href}"` : "div"} class="srow2"><span class="sic">${ic}</span><span class="stx"><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</span>${right || (href ? '<span class="chev">›</span>' : "")}</${href ? "a" : "div"}>`;
+const group = (title, rows, foot) => `<h3 class="ghead">${title}</h3><div class="sgroup">${rows.join("")}${foot ? `<p class="mute sfoot">${foot}</p>` : ""}</div>`;
+const sw = (field, on) => `<label class="sw"><input type="checkbox" data-field="${field}" ${on ? "checked" : ""}><i></i></label>`;
 function settings() {
-  const s = S.settings;
-  return `${header("Settings", "#/me")}<div class="card">
-  <label for="sz">Text size</label><select id="sz" data-field="size">${[["s", "Small"], ["m", "Medium"], ["l", "Large"], ["xl", "Extra large"]].map(([v, n]) => `<option value="${v}" ${s.size === v ? "selected" : ""}>${n}</option>`).join("")}</select>
-  <label class="check" style="font-weight:600"><input type="checkbox" data-field="dark" ${s.dark ? "checked" : ""}>Dark mode</label>
-  <label for="bc">Cards per reading set: <span id="bcv">${s.bites}</span></label><input id="bc" type="range" min="3" max="10" value="${s.bites}" data-field="bites" style="width:100%;height:32px">
-  <label for="bd">Bedtime</label><input id="bd" type="time" value="${s.bedtime}" data-field="bedtime"></div>
+  const s = S.settings, hmm = m => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`);
+  return `${header("Settings ⚙️", "#/me")}
+  ${group("Appearance", [
+    row("🎨", "Theme", s.theme === "midnight" ? "Midnight (navy & lavender)" : "Red & black", "", `<select class="ssel" data-field="theme" aria-label="Theme"><option value="red" ${s.theme !== "midnight" ? "selected" : ""}>Red & black</option><option value="midnight" ${s.theme === "midnight" ? "selected" : ""}>Midnight</option></select>`),
+    row("🌗", "Dark mode", "Easier on the eyes at night", "", sw("dark", s.dark)),
+    row("🔠", "Text size", "", "", `<select class="ssel" data-field="size" aria-label="Text size">${[["s", "Small"], ["m", "Medium"], ["l", "Large"], ["xl", "Extra large"]].map(([v, n]) => `<option value="${v}" ${s.size === v ? "selected" : ""}>${n}</option>`).join("")}</select>`)])}
+  ${group("Usage & goals", [
+    row("🚩", "Daily screen-time goal", hmm(s.goal || 180), "#/limits"),
+    row("⏳", "App limits", `${Object.keys(S.limits).length} app${Object.keys(S.limits).length === 1 ? "" : "s"} with a daily allowance`, "#/limits"),
+    row("🛏️", "Bedtime", "Used for wind-down and phone-free nights", "", `<input class="ssel" type="time" value="${s.bedtime}" data-field="bedtime" aria-label="Bedtime">`),
+    row("📖", "Cards per reading set", `<span id="bcv">${s.bites}</span> cards`, "", `<input type="range" min="3" max="10" value="${s.bites}" data-field="bites" aria-label="Cards per reading set" style="width:110px">`)])}
+  ${group("Focus & reminders", [
+    row("🔒", "Strict focus by default", "Sessions can't be paused or skipped (emergency stop stays)", "", sw("strict", s.strict)),
+    row("🔔", "Chime when a round ends", "Pomodoro sound and vibration", "", `<label class="sw"><input type="checkbox" data-pomo="sound" ${S.pomo.sound ? "checked" : ""}><i></i></label>`)],
+    "Reminders only work while Pause is open. A website can't send alerts in the background or block other apps.")}
+  ${group("Account & privacy", [
+    row("☁️", AU.signedIn() ? "Account" : "Create an account", AU.signedIn() ? "Backed up" : "Optional backup and sync", "#/account"),
+    row("💾", "Export data", "Save your data as a JSON file", "", '<button class="ghost smallbtn" data-act="exportData">Export</button>'),
+    row("🧹", "Clear usage history", "Delete logged app minutes", "", '<button class="ghost smallbtn" data-act="clearUsage">Clear</button>'),
+    row("🔒", "Privacy policy", "", "#/privacy"),
+    row("ℹ️", "About Pause", "Version 2.0", "#/guide")])}
   ${P.settingsBlock()}
   <button class="danger block center" data-act="delAll">Delete all my data</button>`;
 }
@@ -357,7 +391,8 @@ function render() {
   const fn = name === "onboard" ? onboard : MAIN[name] || home;
   const focusing = timer() && ((timer().kind === "focus" && name === "focus") || (timer().kind === "pomo" && name === "pomo"));
   const bare = name === "onboard" || focusing || name === "talk";
-  const tab = { ...ST.tabs, ...WB.tabs, ...AU.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
+  if (["safe", "talk", "people"].includes(name) && !S.flags[name]) { S.flags[name] = true; saveLocal(); }
+  const tab = { ...ST.tabs, ...WB.tabs, ...AU.tabs, ...IN.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
   const preOnboard = !S.onboarded;
   $("#app").innerHTML = fn() + (name === "onboard" || preOnboard ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
     ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}</div></nav>`}`)
@@ -371,9 +406,14 @@ const A = {
   ci: a => { const [k, v] = a.split("|"); ci[k] = ci[k] === v ? null : v; if (k === "intent" && !ci.intent) ci.feeling = null; if (k === "intent" && ci.intent) { S.checkins.push(Date.now()); S.checkins = S.checkins.slice(-400); save(); } render(); },
   startScroll: a => { startTimer("scroll", +a); go("#/scroll"); render(); },
   stopTimer: a => { clearTimer(); go(a || "#/"); render(); },
+  stopScroll: () => { S.notNow.push(Date.now()); clearTimer(); go("#/"); save(); render(); },
   fmin: a => { focusSetup.min = +a; render(); },
   pmin: a => { playSetup.min = +a; render(); },
-  startFocus: () => { startTimer("focus", focusSetup.min, ($("#goal").value || "").trim()); go("#/focus/run"); render(); },
+  startFocus: () => { startTimer("focus", focusSetup.min, ($("#goal").value || "").trim()); S.timer.strict = !!S.settings.strict; save(); go("#/focus/run"); render(); },
+  fcustom: () => { if ([10, 15, 25, 45, 60, 90].includes(focusSetup.min)) focusSetup.min = 30; render(); },
+  emergencyStop: () => { if (confirm("Strict mode is on. Stop this session anyway? That's okay if you need to.")) { clearTimer(); go("#/study"); render(); } },
+  exportData: () => { const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), app: "Pause", data: S }, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = `pause-data-${today()}.json`; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); toast("Exported 💾"); },
+  clearUsage: () => { if (!confirm("Delete all logged app minutes?")) return; for (const k of Object.keys(S.usage)) S.usage[k] = { apps: {}, u: Date.now() }; save(); render(); toast("Usage history cleared 🧹"); },
   pauseFocus: () => { const t = S.timer; t.left = (t.endAt - Date.now()) / 1000; t.endAt = null; save(); render(); },
   resumeFocus: () => { const t = S.timer; t.endAt = Date.now() + t.left * 1000; save(); render(); },
   startPlay: () => { startTimer("play", playSetup.min); render(); },
@@ -399,11 +439,11 @@ Object.assign(A, P.actions); MAIN.people = P.people; MAIN.mod = P.mod;
 const tickHooks = [];
 const ctx = {
   get S() { return S; }, setS: v => { S = v; }, save, saveLocal, esc, header, render, go, toast, route, today, fmt, weekStart, uid, ICON, hero,
-  timer, timeLeft, startTimer, clearTimer, tickHooks,
+  timer, timeLeft, startTimer, clearTimer, tickHooks, signedIn: () => !!(AU && AU.signedIn()),
 };
 const ST = initStudy(ctx), WB = initWell(ctx);
-AU = initAuth(ctx);
-for (const m of [ST, WB, AU]) { Object.assign(MAIN, m.routes); Object.assign(A, m.actions); }
+AU = initAuth(ctx); IN = initInsights(ctx);
+for (const m of [ST, WB, AU, IN]) { Object.assign(MAIN, m.routes); Object.assign(A, m.actions); }
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]"); if (g) { history.length > 1 ? history.back() : go(g.dataset.go); return; }
   const b = e.target.closest("[data-act]"); if (b && A[b.dataset.act]) A[b.dataset.act](b.dataset.arg);
@@ -413,10 +453,15 @@ document.addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.field) {
     const k = el.dataset.field, v = el.type === "checkbox" ? el.checked : k === "bites" ? +el.value : el.value;
-    S.settings[k] = v; if (k === "bites") bites.n = v; save(); applySettings();
+    S.settings[k] = v; if (k === "bites") bites.n = v; if (k === "bedtime") S.settings.bedSet = true; save(); applySettings();
     if (k === "bites") $("#bcv").textContent = v; else if (k !== "bedtime") render();
   }
-  if (el.dataset.check != null) { const i = +el.dataset.check, it = S.checklist.items; el.checked ? it.includes(i) || it.push(i) : it.splice(it.indexOf(i), 1); save(); }
+  if (el.dataset.check != null) {
+    const i = +el.dataset.check, it = S.checklist.items; el.checked ? it.includes(i) || it.push(i) : it.splice(it.indexOf(i), 1);
+    if (i === 0) { const d = new Date(); if (d.getHours() < 6) d.setDate(d.getDate() - 1); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; if (el.checked) S.nightDone[k] = true; else delete S.nightDone[k]; }
+    save();
+  }
+  if (el.dataset.fcustom) { const v = Math.round(+el.value); if (v >= 5 && v <= 180) { focusSetup.min = v; render(); } }
 });
 document.addEventListener("input", e => { if (e.target.dataset.range === "bites") { bites.n = +e.target.value; S.settings.bites = bites.n; save(); e.target.previousElementSibling.textContent = `How many cards? ${bites.n}`; } });
 
