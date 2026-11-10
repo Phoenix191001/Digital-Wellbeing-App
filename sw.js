@@ -1,4 +1,4 @@
-const CACHE = "pause-v8";
+const CACHE = "pause-v9";
 const FILES = ["./", "index.html", "styles.css", "app.js", "content.js", "people.js", "study.js", "wellbeing.js", "auth.js", "config.js", "insights.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "qr.svg"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== CACHE).map(x => caches.delete(x)))).then(() => self.clients.claim())); });

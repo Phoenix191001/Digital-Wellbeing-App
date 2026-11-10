@@ -95,7 +95,7 @@ function onboard() {
     ["☁️", "Save your progress?", "Create a free account to back up your study goals, flashcards and garden, and use them on another device. It's optional."],
   ];
   const i = Math.min(+route()[1] || 0, 3), [e, h, p] = steps[i];
-  return `<div class="fullscreen center"><div class="emoji-xl">${e}</div><h1>${h}</h1><p>${p}</p><div class="dots">${steps.map((_, j) => `<i class="${j === i ? "on" : ""}"></i>`).join("")}</div>
+  return `<div class="fullscreen center">${i === 0 ? `<img src="icon-192.png" alt="سكون logo" width="96" height="96" style="border-radius:26px;margin:0 auto 6px;box-shadow:0 10px 40px rgba(217,31,42,.35)">` : `<div class="emoji-xl">${e}</div>`}<h1>${h}</h1><p>${p}</p><div class="dots">${steps.map((_, j) => `<i class="${j === i ? "on" : ""}"></i>`).join("")}</div>
     ${i < 3 ? `<button class="primary wide" data-act="next" data-arg="${i + 1}">Next</button>` : `<a class="btn primary wide" href="#/signup">Create account ✨</a><a class="btn wide" href="#/signin">I have an account</a><button class="ghost wide" data-act="finishOnboard">Continue without an account</button>`}</div>`;
 }
 
