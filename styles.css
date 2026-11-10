@@ -138,3 +138,6 @@ input[type=email],input[type=password]{font:inherit;width:100%;padding:12px;bord
 @keyframes fall{to{transform:translateY(105vh) rotate(540deg);opacity:.2}}
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.flip .face,.ring circle{transition:none}}
 nav.tabs a{font-size:.64em}
+/* hide the scrollbar inside the app; scrolling still works (wheel, trackpad, touch, keyboard) */
+#app{scrollbar-width:none;-ms-overflow-style:none}
+#app::-webkit-scrollbar{display:none;width:0;height:0}
