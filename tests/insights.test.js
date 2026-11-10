@@ -51,7 +51,7 @@ const at = (n, h, m) => { const d = new Date(); d.setDate(d.getDate() - n); d.se
   await p.click("text=Emergency stop");
   // export + clear
   await p.goto(U + "#/settings"); const [dl] = await Promise.all([p.waitForEvent("download"), p.click("button:text-is('Export')")]);
-  const data = JSON.parse(require("fs").readFileSync(await dl.path(), "utf8")); ok(data.app === "Pause" && data.data.limits.instagram === 30, "export JSON download");
+  const data = JSON.parse(require("fs").readFileSync(await dl.path(), "utf8")); ok(data.app === "Sukoon" && data.data.limits.instagram === 30, "export JSON download");
   await p.click("button:text-is('Clear')"); s = await p.evaluate(() => JSON.parse(localStorage.getItem("pause.v1")));
   ok(Object.values(s.usage).every(d => !Object.keys(d.apps).length), "clear usage history");
   for (const h of ["", "me", "settings", "insights", "achievements", "limits", "tour", "helps", "focus", "study", "sleep", "usage"]) { await p.goto(U + "#/" + h); await p.waitForTimeout(100); if ((await p.locator("#app").innerText()).length < 30) ok(false, "empty " + h); }

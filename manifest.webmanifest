@@ -1,15 +1,84 @@
 {
-  "name": "Pause",
-  "short_name": "Pause",
-  "description": "A private pause before you scroll.",
+  "name": "سكون",
+  "short_name": "سكون",
+  "description": "Sukoon: a calm pause before you scroll. Study tools, sleep, and a path to a real person.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#c8102e",
+  "background_color": "#0b0b0c",
+  "theme_color": "#0b0b0c",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "id": "/",
+  "dir": "auto",
+  "lang": "ar",
+  "orientation": "portrait",
+  "categories": [
+    "education",
+    "health",
+    "lifestyle",
+    "productivity"
+  ],
+  "screenshots": [
+    {
+      "src": "shot-home.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Today"
+    },
+    {
+      "src": "shot-study.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Study"
+    },
+    {
+      "src": "shot-insights.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Insights"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Pomodoro",
+      "url": "/#/pomo",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Talk to someone",
+      "url": "/#/talk",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

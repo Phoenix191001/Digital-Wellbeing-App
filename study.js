@@ -72,7 +72,7 @@ export function initStudy(c) {
       ${gs.length ? `<label>Count it toward a goal</label><div class="chips"><button class="${!setup.goal ? "on" : ""}" data-act="pomoGoal" data-arg="">None</button>${gs.map(g => `<button class="${setup.goal === g.id ? "on" : ""}" data-act="pomoGoal" data-arg="${g.id}">${g.emoji} ${esc(g.title)}</button>`).join("")}</div>` : `<p class="mute"><a href="#/goals">Add a study goal</a> to track time per subject.</p>`}
       <label class="check" style="font-weight:600;border:0"><input type="checkbox" data-pomo="sound" ${p.sound ? "checked" : ""}>🔔 Chime when a round ends</label>
       <button class="primary wide" data-act="pomoStart">Start focusing 🍅</button></div>
-    <p class="mute">Timers only run while Pause is open. Put your phone face down and come back when it chimes.</p>`;
+    <p class="mute">Timers only run while سكون is open. Put your phone face down and come back when it chimes.</p>`;
   }
   function ring(t, color) {
     const pct = Math.max(0, Math.min(1, c.timeLeft() / t.total)), C = 2 * Math.PI * 88;

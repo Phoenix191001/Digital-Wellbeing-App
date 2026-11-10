@@ -118,9 +118,9 @@ export function initAuth(c) {
   function signup() {
     if (A) return account();
     return `${header("Create account ✨", back())}
-    <div class="card"><p class="mute">Back up your study progress, goals, flashcards and garden, and use Pause on more than one device. Optional: Pause works fully without an account.</p>
+    <div class="card"><p class="mute">Back up your study progress, goals, flashcards and garden, and use سكون on more than one device. Optional: سكون works fully without an account.</p>
     <form data-act="signUp" novalidate>
-      <label for="su-name">Nickname <span class="mute">(optional)</span></label><input id="su-name" name="nickname" type="text" maxlength="30" autocomplete="nickname" placeholder="What should Pause call you?" value="${esc(lastName)}">
+      <label for="su-name">Nickname <span class="mute">(optional)</span></label><input id="su-name" name="nickname" type="text" maxlength="30" autocomplete="nickname" placeholder="What should سكون call you?" value="${esc(lastName)}">
       <label for="su-email">Email</label><input id="su-email" name="email" type="email" autocomplete="email" required inputmode="email" value="${esc(lastEmail)}">
       <label for="su-pass">Password</label><input id="su-pass" name="new-password" type="password" autocomplete="new-password" minlength="8" required>
       <label for="su-pass2">Repeat password</label><input id="su-pass2" type="password" autocomplete="new-password" minlength="8" required>
@@ -150,7 +150,7 @@ export function initAuth(c) {
   }
   function account() {
     if (!A) return `${header("Account ☁️", "#/me")}
-      <div class="card center"><div class="emoji-xl">☁️</div><p>You're using Pause <b>without an account</b>. Everything stays on this phone.</p>
+      <div class="card center"><div class="emoji-xl">☁️</div><p>You're using سكون <b>without an account</b>. Everything stays on this phone.</p>
       <p class="mute">Create one to back up your goals, flashcards, garden and stats, and use them on another device.</p>
       <a class="btn primary wide" href="#/signup">Create account</a><a class="btn wide" href="#/signin">Sign in</a></div>`;
     const name = c.S.profile.name || A.user.name || "", when = sync.at ? new Date(sync.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";

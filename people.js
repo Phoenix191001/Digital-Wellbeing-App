@@ -55,7 +55,7 @@ export function initPeople({ esc, header, render, go, toast, getS, save }) {
 
   const ago = ts => { const s = (Date.now() - ts) / 1000; return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`; };
   const spaceName = s => (s === "female" ? "Female space" : "Male space");
-  const note = `<p class="mute" style="font-size:.85em">Pause is not a counselor. If you need a person, tap <a href="#/talk">Talk to someone</a>.</p>`;
+  const note = `<p class="mute" style="font-size:.85em">سكون is not a counselor. If you need a person, tap <a href="#/talk">Talk to someone</a>.</p>`;
 
   /* ---- screens ---- */
   function people() {

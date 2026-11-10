@@ -98,7 +98,7 @@ export function initInsights(c) {
     <h2>App distribution</h2><div class="seg"><button class="${distRange === "1" ? "on" : ""}" data-act="distRange" data-arg="1">Today</button><button class="${distRange === "7" ? "on" : ""}" data-act="distRange" data-arg="7">${distRange === "7" ? "✓ " : ""}Last 7 days</button></div>
     <div class="card">${donut(distRange)}</div>
     <a class="btn primary wide" href="#/usage">📊 Log today's usage</a>
-    <p class="mute">Pause can't see other apps. Copy the minutes from Digital Wellbeing (Android) or Screen Time (iPhone).</p>`;
+    <p class="mute">سكون can't see other apps. Copy the minutes from Digital Wellbeing (Android) or Screen Time (iPhone).</p>`;
   }
 
   /* ---------- limits ---------- */
@@ -109,7 +109,7 @@ export function initInsights(c) {
     ${chosen.length && !pickApps ? chosen.map(a => { const v = apps[a.id] || 0, p = Math.min(100, (v / lim[a.id]) * 100); return `<div class="card lrow"><span class="aic" style="background:${a.c}22">${a.e}</span><span class="an"><span><b>${a.n}</b><span class="mute">${hm(v)} / ${hm(lim[a.id])}</span></span><span class="ubar"><i style="width:${p}%;background:${v > lim[a.id] ? "#f87171" : "var(--acc2)"}"></i></span></span></div>`; }).join("") + `<button class="wide" data-act="pickApps">✏️ Edit apps</button>`
       : pickApps ? `<div class="card">${APPS.filter(a => a.id !== "study").map(a => `<div class="step"><span>${a.e} ${a.n}</span><div class="chips">${[0, 15, 30, 60, 120].map(m => `<button class="${(lim[a.id] || 0) === m ? "on" : ""}" style="min-height:40px;padding:6px 10px" data-act="setLimit" data-arg="${a.id}|${m}">${m ? hm(m) : "Off"}</button>`).join("")}</div></div>`).join("")}<button class="primary wide" data-act="pickApps">Done</button></div>`
       : `<div class="empty"><div class="ebub">⏳</div><b>No apps selected yet</b><p class="mute">Choose the apps that take more of your time than you'd like, then give each one a daily allowance.</p><button class="primary" data-act="pickApps">＋ Choose apps</button></div>`}
-    <p class="mute">Pause can't block apps; it shows your limits and reminds you gently. For hard limits, use <a href="#/safe/tools">your phone's own app timers</a>.</p>`;
+    <p class="mute">سكون can't block apps; it shows your limits and reminds you gently. For hard limits, use <a href="#/safe/tools">your phone's own app timers</a>.</p>`;
   }
 
   /* ---------- tour + how Pause helps ---------- */
@@ -138,7 +138,7 @@ export function initInsights(c) {
   }
   function helps() {
     const P = [["📱", "Scrolling trap and lost time", [["Check-in", "#/"], ["Read a short set", "#/read"], ["Pomodoro", "#/pomo"], ["Insights", "#/insights"]]], ["🥺", "Loneliness or low mood", [["Find your people", "#/people"], ["Talk to someone", "#/talk"], ["Daily mood", "#/"]]], ["🚫", "Unwanted content", [["Stay safe", "#/safe/content"]]], ["🪞", "Comparison and FOMO", [["Comparison reset", "#/safe/compare"], ["Connect challenges", "#/challenges/Connect"]]], ["🌀", "Escaping into online worlds", [["Something else to do", "#/challenges"], ["Check-in", "#/"]]], ["🎮", "Game addiction", [["Play timer", "#/play"], ["Limits", "#/limits"]]], ["🧱", "Online harassment", [["Harassment steps", "#/safe/harass"], ["Talk to someone", "#/talk"]]], ["🌙", "Night use and lost sleep", [["Sleep", "#/sleep"], ["Wind-down", "#/night"]]], ["🔔", "Notifications pulling you in", [["Notifications guide", "#/safe/notif"]]], ["📚", "Studying pushed late", [["Goals", "#/goals"], ["Flashcards", "#/cards"], ["Garden", "#/garden"]]]];
-    return `${header("How Pause helps 💡", "#/me")}<p class="mute" style="margin-top:-6px">Which feature solves which problem</p>
+    return `${header("How سكون helps 💡", "#/me")}<p class="mute" style="margin-top:-6px">Which feature solves which problem</p>
     ${P.map(([e, p, fs]) => `<div class="card"><b>${e} ${p}</b><div class="chips" style="margin-top:10px">${fs.map(([f, h]) => `<a class="btn" style="min-height:40px;padding:8px 12px" href="${h}">${f} ›</a>`).join("")}</div></div>`).join("")}`;
   }
 

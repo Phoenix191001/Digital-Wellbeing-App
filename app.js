@@ -89,9 +89,9 @@ const header = (title, back) => `<div class="top">${back ? `<button class="back 
 /* ---------- screens ---------- */
 function onboard() {
   const steps = [
-    ["👋", "Welcome to Pause", "A calm place to open <b>first</b> when you reach for your phone. It doesn't block your apps or tell you phone use is bad. It gives you a pause, something better to do, and a path to a real person."],
+    ["👋", "Welcome to سكون", "<b>سكون</b> (sukoon) means calm, stillness. A calm place to open <b>first</b> when you reach for your phone. It doesn't block your apps or tell you phone use is bad. It gives you a pause, something better to do, and a path to a real person."],
     ["🔒", "Private by default", "Without an account, everything stays on this phone. No ads, no analytics, no tracking. Nobody, not a parent, teacher or staff member, can see what you do here. Delete everything any time."],
-    ["💬", "A real person is one tap away", "The <b>Talk to someone</b> button shows on every main screen. Pause is not a counselor and cannot diagnose. It can point you to people who can help."],
+    ["💬", "A real person is one tap away", "The <b>Talk to someone</b> button shows on every main screen. سكون is not a counselor and cannot diagnose. It can point you to people who can help."],
     ["☁️", "Save your progress?", "Create a free account to back up your study goals, flashcards and garden, and use them on another device. It's optional."],
   ];
   const i = Math.min(+route()[1] || 0, 3), [e, h, p] = steps[i];
@@ -105,6 +105,24 @@ function nightNow() {
   return (mins >= bed - 60 && mins < 24 * 60 && bed >= 12 * 60) || mins < 5 * 60 || (bed < 12 * 60 && mins >= bed - 60 && mins <= bed + 240);
 }
 
+/* ---------- install (PWA) ---------- */
+let deferredInstall = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; if (["install", ""].includes(route()[0] || "")) render(); });
+window.addEventListener("appinstalled", () => { deferredInstall = null; S.flags.installed = true; saveLocal(); toast("Installed ✅ Open سكون from your home screen."); });
+const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const platform = () => (/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? "ios" : /android/i.test(navigator.userAgent) ? "android" : "desktop");
+function install() {
+  const pf = platform(), ios = `<ol class="steps lgsteps"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button <span class="kbd">⬆︎</span> at the bottom of the screen.</li><li>Scroll down and tap <b>Add to Home Screen</b> <span class="kbd">➕</span>.</li><li>Tap <b>Add</b>. سكون appears on your home screen 🎉</li></ol>`;
+  const android = `<ol class="steps lgsteps"><li>Open this page in <b>Chrome</b>.</li><li>Tap the menu <span class="kbd">⋮</span> at the top right.</li><li>Tap <b>Install app</b> (or <b>Add to Home screen</b>).</li><li>Tap <b>Install</b>. سكون appears with your other apps 🎉</li></ol>`;
+  const desktop = `<div class="qrbox"><img src="qr.svg" alt="QR code for ${location.host}" width="180" height="180"><div><b>Scan with your phone camera</b><p class="mute">or type <b>${location.host}</b> in your phone's browser, then follow the steps for your phone.</p></div></div>`;
+  return `${header("Install سكون 📲", "#/me")}
+  <div class="card center"><img src="icon-192.png" alt="" width="84" height="84" style="border-radius:22px"><h2 style="margin:.4em 0 0">سكون <span class="mute" style="font-weight:400">· Sukoon</span></h2>
+    <p class="mute">Free · no app store needed · works offline · updates itself</p>
+    ${standalone() ? `<p class="okmsg">✅ You're using the installed app. You're all set!</p>` : deferredInstall ? `<button class="primary wide" data-act="installNow">📲 Install now</button>` : ""}</div>
+  ${standalone() ? "" : `<h2>${pf === "ios" ? "📱 iPhone / iPad" : pf === "android" ? "🤖 Android" : "💻 On a computer? Get it on your phone"}</h2><div class="card">${pf === "ios" ? ios : pf === "android" ? android : desktop}</div>
+  ${pf !== "ios" ? `<details class="card"><summary><b>📱 iPhone / iPad steps</b></summary>${ios}</details>` : ""}${pf !== "android" ? `<details class="card"><summary><b>🤖 Android steps</b></summary>${android}</details>` : ""}${pf !== "desktop" ? `<details class="card"><summary><b>💻 Show QR code</b></summary>${desktop}</details>` : ""}`}
+  <div class="card"><b>Good to know</b><p class="mute">• It opens full screen like a normal app, with its own icon.<br>• It takes almost no storage and always has the newest version.<br>• Your data stays on this phone (unless you choose to sign in).<br>• To remove it, long-press the icon and choose Remove / Uninstall.</p></div>`;
+}
 function greet() {
   const h = new Date().getHours(), n = S.profile.name ? `, ${esc(S.profile.name)}` : "";
   return h < 5 ? `Up late${n}? 🌙` : h < 12 ? `Good morning${n} ☀️` : h < 17 ? `Good afternoon${n} 🌤️` : h < 21 ? `Good evening${n} 🌆` : `Good night${n} 🌙`;
@@ -117,6 +135,7 @@ function home() {
   return `<div class="hello"><div><p class="mute" style="margin:0">${new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</p><h1 style="margin:0">${greet()}</h1></div>
     <a class="avatar sm" href="#/${AU.signedIn() ? "account" : "me"}" aria-label="Me">${esc((S.profile.name || "🙂")[0].toUpperCase())}</a></div>
   <span class="pill">${ICON.lock} Private · stays on this phone unless you sign in or post</span>
+  ${!standalone() && !S.flags.installHide ? `<div class="card installcard"><a href="#/install"><span class="fi f-teal">📲</span><span><b>Install سكون on your phone</b><br><span class="mute">Add it to your home screen like an app</span></span></a><button class="ghost xbtn" data-act="installHide" aria-label="Hide install tip">✕</button></div>` : ""}
   ${nightNow() ? `<a class="card btn block feature" href="#/sleep"><span class="fi f-purple">🌙</span><span><b>It's getting late</b><br><span class="mute">Open your wind-down or sleep sounds</span></span></a>` : ""}
   <div class="card checkin"><h2 style="margin-top:0">⏸️ What did you come to do?</h2>${S.why ? `<p class="whyline">💭 Your why: “${esc(S.why)}”</p>` : ""}${chips(intents, "intent")}
     ${ci.intent ? `<h2>How are you feeling? <span class="mute">(optional)</span></h2>${chips(feels, "feeling")}` : ""}
@@ -142,7 +161,7 @@ function home() {
 function suggestions() {
   const out = [], add = (t, d, h) => { if (out.length < 3 && !out.some(o => o.h === h)) out.push({ t, d, h }); };
   const { intent, feeling } = ci;
-  if (intent === "Message someone") out.push({ t: "Do it, then come back", d: "Send your message. Pause will be here after.", h: "" });
+  if (intent === "Message someone") out.push({ t: "Do it, then come back", d: "Send your message. سكون will be here after.", h: "" });
   if (intent === "Study") { add("🍅 Start a Pomodoro", "Focus in rounds, grow your garden.", "#/pomo"); add("🃏 Review flashcards", "A few minutes of recall.", "#/cards"); }
   if (feeling === "Lonely") { add("Connect with someone", "A small step toward a person.", "#/challenges/Connect"); add("Talk to someone", "Campus counselor or a trusted friend.", "#/talk"); }
   if (feeling === "Stressed") { add("A calm moment", "Breathing, tea or quiet time.", "#/challenges/Calm"); add("Talk to someone", "You don't have to carry it alone.", "#/talk"); }
@@ -217,7 +236,7 @@ function play() {
     return `<div class="screen">${hero("game", "Playing", "Enjoy it. You set the limit.")}${countdown("PLAY COUNTDOWN", "Calm reminder when it ends")}<button class="ghost wide" data-act="stopTimer" data-arg="#/do">Return to Do</button></div>`;
   }
   return `${header("Play timer", "#/do")}<div class="card"><p>Set a limit before you start playing.</p><div class="chips">${[15, 30, 60, 90].map(m => `<button class="${playSetup.min === m ? "on" : ""}" data-act="pmin" data-arg="${m}">${m} min</button>`).join("")}</div>
-  <button class="primary block center" style="margin-top:16px" data-act="startPlay">Start</button></div><p class="mute">The timer runs only while Pause is open. Set a phone alarm too.</p>`;
+  <button class="primary block center" style="margin-top:16px" data-act="startPlay">Start</button></div><p class="mute">The timer runs only while سكون is open. Set a phone alarm too.</p>`;
 }
 
 function challenges() {
@@ -268,10 +287,10 @@ function talk() {
   return `${header("Talk to someone", "#/")}
   <div class="card"><h2 style="margin-top:0">Campus counselor</h2><p><b>${COUNSELOR.name}</b></p>
     <p class="mute">${COUNSELOR.contact ? esc(COUNSELOR.contact) : "Ask at your campus student office for his room and timings."}</p></div>
-  <div class="card"><h2 style="margin-top:0">Text a trusted friend</h2><p class="mute">Pick a message. Your phone's share sheet opens. Nothing is sent by Pause.</p>
+  <div class="card"><h2 style="margin-top:0">Text a trusted friend</h2><p class="mute">Pick a message. Your phone's share sheet opens. Nothing is sent by سكون.</p>
     ${FRIEND_MSGS.map((m, i) => `<button class="block" data-act="shareMsg" data-arg="${i}">“${m}”</button>`).join("")}</div>
   <div class="card warm"><b>If you are in immediate danger or thinking of harming yourself, contact campus security or emergency services now.</b></div>
-  <p class="mute">Pause is not a counselor and cannot diagnose.</p>
+  <p class="mute">سكون is not a counselor and cannot diagnose.</p>
   <a class="btn block center" href="#/notes">Private mood notes</a>`;
 }
 
@@ -287,9 +306,9 @@ function me() {
     <a class="qt q-red" href="#/limits"><span>⏳</span><b>Limits</b><small>Daily allowances</small></a>
     <a class="qt q-dim" href="#/week"><span>📅</span><b>My week</b><small>Calm summary</small></a>
   </div>
-  ${group("Guide", [row("🧭", "App tour", "Problem → feature → set it up", "#/tour"), row("💡", "How Pause helps", "Which feature solves which problem", "#/helps"), row("📘", "User guide", "Getting started", "#/guide")])}
+  ${group("Guide", [row("🧭", "App tour", "Problem → feature → set it up", "#/tour"), row("💡", "How سكون helps", "Which feature solves which problem", "#/helps"), row("📘", "User guide", "Getting started", "#/guide"), row("📲", "Install the app", standalone() ? "Installed ✅" : "Add سكون to your home screen", "#/install")])}
   ${group("Healthy habits", [row("🌙", "Night routine", `Bedtime ${S.settings.bedtime}`, "#/night"), row("📝", "Private mood notes", "Only on this phone", "#/notes"), row("💬", "Talk to someone", "Counselor and trusted friends", "#/talk")])}
-  ${group("More", [row("⚙️", "Settings", "Theme, goals, focus, data", "#/settings"), row("🔒", "Privacy", "What Pause stores", "#/privacy")])}`;
+  ${group("More", [row("⚙️", "Settings", "Theme, goals, focus, data", "#/settings"), row("🔒", "Privacy", "What سكون stores", "#/privacy")])}`;
 }
 
 function night() {
@@ -347,44 +366,44 @@ function settings() {
   ${group("Focus & reminders", [
     row("🔒", "Strict focus by default", "Sessions can't be paused or skipped (emergency stop stays)", "", sw("strict", s.strict)),
     row("🔔", "Chime when a round ends", "Pomodoro sound and vibration", "", `<label class="sw"><input type="checkbox" data-pomo="sound" ${S.pomo.sound ? "checked" : ""}><i></i></label>`)],
-    "Reminders only work while Pause is open. A website can't send alerts in the background or block other apps.")}
+    "Reminders only work while سكون is open. A website can't send alerts in the background or block other apps.")}
   ${group("Account & privacy", [
     row("☁️", AU.signedIn() ? "Account" : "Create an account", AU.signedIn() ? "Backed up" : "Optional backup and sync", "#/account"),
     row("💾", "Export data", "Save your data as a JSON file", "", '<button class="ghost smallbtn" data-act="exportData">Export</button>'),
     row("🧹", "Clear usage history", "Delete logged app minutes", "", '<button class="ghost smallbtn" data-act="clearUsage">Clear</button>'),
     row("🔒", "Privacy policy", "", "#/privacy"),
-    row("ℹ️", "About Pause", "Version 2.0", "#/guide")])}
+    row("ℹ️", "About سكون", "Version 2.0", "#/guide")])}
   ${P.settingsBlock()}
   <button class="danger block center" data-act="delAll">Delete all my data</button>`;
 }
 
 function privacy() {
-  return `${header("Privacy", "#/me")}<div class="card"><p>Pause stores only these things, <b>on this device</b>:</p>
+  return `${header("Privacy", "#/me")}<div class="card"><p>سكون stores only these things, <b>on this device</b>:</p>
   <p>• Settings, nickname, daily mood emoji<br>• Focus and Pomodoro minutes, goals, tasks, flashcards<br>• App usage and sleep you logged<br>• Challenges you marked done<br>• Mood notes you wrote</p>
-  <p>Pause has no analytics, no ads and no trackers. It never asks for your phone number, location or contacts. Nobody else can see your data.</p>
+  <p>سكون has no analytics, no ads and no trackers. It never asks for your phone number, location or contacts. Nobody else can see your data.</p>
   <p>Delete any of it, or all of it, in Settings.</p></div>
   <div class="card"><p><b>Everything stays on your phone except what you choose to post in Find your people.</b> That uses a made-up name and can be deleted any time.</p>
-  <p>If you join, Pause's server stores only: a random anonymous id (the secret key is kept on this phone), your made-up display name, your space, the circles you joined, and your posts, replies and reactions. No real name, photo, email or phone number. No analytics. Pause does not keep IP addresses; our host may process them briefly to deliver the page.</p>
+  <p>If you join, the سكون server stores only: a random anonymous id (the secret key is kept on this phone), your made-up display name, your space, the circles you joined, and your posts, replies and reactions. No real name, photo, email or phone number. No analytics. سكون does not keep IP addresses; our host may process them briefly to deliver the page.</p>
   <p>To remove it all, use <b>Leave community and delete my posts</b> in Me, then Settings.</p></div>
-  <div class="card"><p><b>☁️ Optional account</b></p><p>If you create an account, Pause stores your email and a private backup of the data above (except mood notes, unless you turn that on) in your own row in our database. Only you can read it. Your community posts stay anonymous and are not linked to your account.</p>
+  <div class="card"><p><b>☁️ Optional account</b></p><p>If you create an account, سكون stores your email and a private backup of the data above (except mood notes, unless you turn that on) in your own row in our database. Only you can read it. Your community posts stay anonymous and are not linked to your account.</p>
   <p>Delete your account and backup any time in Me, then Account.</p></div>`;
 }
 
 function guide() {
   return `${header("User guide", "#/me")}<div class="card"><ol class="steps">
-  <li>Open the link and add Pause to your home screen. Android Chrome: menu, then <i>Add to Home screen</i>. iPhone Safari: Share, then <i>Add to Home Screen</i>.</li>
-  <li>Open Pause when you reach for your phone, and answer the check-in.</li>
+  <li>Open the link and <a href="#/install">install سكون</a> on your home screen. Android Chrome: menu, then <i>Install app</i>. iPhone Safari: Share, then <i>Add to Home Screen</i>.</li>
+  <li>Open سكون when you reach for your phone, and answer the check-in.</li>
   <li>Try a focus session, a reading set, or a challenge.</li>
   <li>Use <b>Talk to someone</b> if you need a person.</li>
   <li>Check <b>Stay safe</b> for scams, privacy and notifications.</li>
   <li>Use the <b>Study</b> tab for Pomodoro 🍅, goals 🎯 and flashcards 🃏. Every 25 focus minutes grows a plant in your garden 🌳.</li>
   <li>In <b>Me</b>, log your sleep 😴 and app usage 📊, and play sleep sounds.</li>
   <li>Your data stays on your phone unless you create an account to back it up. Delete it any time in Me, then Settings.</li></ol></div>
-  <p class="mute">Pause cannot see or block other apps or measure real phone use. Timers run only while it is open.</p>`;
+  <p class="mute">سكون cannot see or block other apps or measure real phone use. Timers run only while it is open.</p>`;
 }
 
 /* ---------- render ---------- */
-const MAIN = { "": home, scroll: scrollTimer, do: doMenu, focus: focusPage, play, challenges, challenge, read, safe, talk, me, night, week, notes, settings, privacy, guide };
+const MAIN = { install, "": home, scroll: scrollTimer, do: doMenu, focus: focusPage, play, challenges, challenge, read, safe, talk, me, night, week, notes, settings, privacy, guide };
 function render() {
   const r = route(), name = r[0] || "";
   if (!S.onboarded && !["onboard", "signin", "signup", "reset", "account"].includes(name)) return go("#/onboard");
@@ -392,7 +411,7 @@ function render() {
   const focusing = timer() && ((timer().kind === "focus" && name === "focus") || (timer().kind === "pomo" && name === "pomo"));
   const bare = name === "onboard" || focusing || name === "talk";
   if (["safe", "talk", "people"].includes(name) && !S.flags[name]) { S.flags[name] = true; saveLocal(); }
-  const tab = { ...ST.tabs, ...WB.tabs, ...AU.tabs, ...IN.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
+  const tab = { install: "me", ...ST.tabs, ...WB.tabs, ...AU.tabs, ...IN.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
   const preOnboard = !S.onboarded;
   $("#app").innerHTML = fn() + (name === "onboard" || preOnboard ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
     ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}</div></nav>`}`)
@@ -412,7 +431,9 @@ const A = {
   startFocus: () => { startTimer("focus", focusSetup.min, ($("#goal").value || "").trim()); S.timer.strict = !!S.settings.strict; save(); go("#/focus/run"); render(); },
   fcustom: () => { if ([10, 15, 25, 45, 60, 90].includes(focusSetup.min)) focusSetup.min = 30; render(); },
   emergencyStop: () => { if (confirm("Strict mode is on. Stop this session anyway? That's okay if you need to.")) { clearTimer(); go("#/study"); render(); } },
-  exportData: () => { const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), app: "Pause", data: S }, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = `pause-data-${today()}.json`; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); toast("Exported 💾"); },
+  installNow: async () => { if (!deferredInstall) return; deferredInstall.prompt(); const r = await deferredInstall.userChoice.catch(() => ({})); deferredInstall = null; if (r && r.outcome === "accepted") { S.flags.installed = true; saveLocal(); } render(); },
+  installHide: () => { S.flags.installHide = true; saveLocal(); render(); },
+  exportData: () => { const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), app: "Sukoon", data: S }, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = `pause-data-${today()}.json`; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); toast("Exported 💾"); },
   clearUsage: () => { if (!confirm("Delete all logged app minutes?")) return; for (const k of Object.keys(S.usage)) S.usage[k] = { apps: {}, u: Date.now() }; save(); render(); toast("Usage history cleared 🧹"); },
   pauseFocus: () => { const t = S.timer; t.left = (t.endAt - Date.now()) / 1000; t.endAt = null; save(); render(); },
   resumeFocus: () => { const t = S.timer; t.endAt = Date.now() + t.left * 1000; save(); render(); },
