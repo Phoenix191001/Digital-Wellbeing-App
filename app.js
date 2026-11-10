@@ -1,15 +1,25 @@
 import { initPeople } from "./people.js";
+import { initStudy } from "./study.js";
+import { initWell } from "./wellbeing.js";
+import { initAuth } from "./auth.js";
 import { COUNSELOR, BITES, GROUPS, CHALLENGES, MEET_TIPS, BREAKS, SAFE, FRIEND_MSGS, CHECKLIST } from "./content.js";
 
 /* ---------- storage: everything lives on this device only ---------- */
 const KEY = "pause.v1";
-const DEFAULTS = { settings: { size: "m", dark: true, bites: 5, bedtime: "23:30" }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null };
+const DEFAULTS = {
+  settings: { size: "m", dark: true, bites: 5, bedtime: "23:30", syncNotes: false }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null,
+  profile: { name: "" }, pomo: { work: 25, short: 5, long: 15, rounds: 4, sound: true }, goals: [], tasks: [], decks: [], reviews: [],
+  usage: {}, limits: {}, sleepLog: [], sleepStart: null, mood: {}, checkins: [], pauseTime: {}, tomb: [],
+};
 let S = load();
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); return { ...DEFAULTS, ...d, settings: { ...DEFAULTS.settings, ...(d && d.settings) } }; }
+  try { const d = JSON.parse(localStorage.getItem(KEY)); return { ...structuredClone(DEFAULTS), ...d, settings: { ...DEFAULTS.settings, ...(d && d.settings) }, pomo: { ...DEFAULTS.pomo, ...(d && d.pomo) }, profile: { ...DEFAULTS.profile, ...(d && d.profile) } }; }
   catch { return structuredClone(DEFAULTS); }
 }
-const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const saveLocal = () => localStorage.setItem(KEY, JSON.stringify(S));
+const save = () => { saveLocal(); if (AU) AU.queue(); };
+let AU = null;
+const uid = () => [...crypto.getRandomValues(new Uint8Array(6))].map(x => x.toString(16).padStart(2, "0")).join("");
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -41,6 +51,7 @@ const ICON = {
   target: I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>'),
   check: I('<path d="M5 12l5 5 9-10"/>', 2.6),
   lock: I('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>', 2),
+  study: I('<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/><path d="M22 9v6"/>'),
   game: I('<rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 10v5M4.5 12.5h5"/><circle cx="16" cy="11.5" r=".8"/><circle cx="18.5" cy="13.5" r=".8"/>'),
 };
 const hero = (ic, title, sub) => `<div class="hero"><div class="tile">${ICON[ic]}</div><h1>${title}</h1><p class="mute">${sub}</p></div>`;
@@ -68,19 +79,20 @@ const route = () => (location.hash.replace(/^#/, "") || "/").split("/").filter(B
 const go = h => { location.hash = h; };
 window.addEventListener("hashchange", () => { render(); $("#app").scrollTop = 0; });
 
-const TABS = [["", "home", "Home"], ["do", "do", "Do"], ["read", "read", "Read"], ["safe", "safe", "Stay safe"], ["me", "me", "Me"]];
+const TABS = [["", "home", "Home"], ["study", "study", "Study"], ["do", "do", "Do"], ["read", "read", "Read"], ["safe", "safe", "Stay safe"], ["me", "me", "Me"]];
 const header = (title, back) => `<div class="top">${back ? `<button class="back ghost" data-go="${back}" aria-label="Back">←</button>` : ""}<h1>${title}</h1></div>`;
 
 /* ---------- screens ---------- */
 function onboard() {
   const steps = [
-    ["Welcome to Pause", "Pause is a calm place to open <b>first</b> when you reach for your phone. It does not block your apps or tell you phone use is bad. It gives you a pause, something better to do, and a path to a real person."],
-    ["Your data stays on your phone", "There are no accounts, no server and no tracking. Nothing is sent anywhere. Nobody, not a parent, teacher or staff member, can see what you do here. You can delete everything at any time."],
-    ["A real person is always one tap away", "The <b>Talk to someone</b> button shows on every main screen. Pause is not a counselor and cannot diagnose. It can point you to people who can help."],
+    ["👋", "Welcome to Pause", "A calm place to open <b>first</b> when you reach for your phone. It doesn't block your apps or tell you phone use is bad. It gives you a pause, something better to do, and a path to a real person."],
+    ["🔒", "Private by default", "Without an account, everything stays on this phone. No ads, no analytics, no tracking. Nobody, not a parent, teacher or staff member, can see what you do here. Delete everything any time."],
+    ["💬", "A real person is one tap away", "The <b>Talk to someone</b> button shows on every main screen. Pause is not a counselor and cannot diagnose. It can point you to people who can help."],
+    ["☁️", "Save your progress?", "Create a free account to back up your study goals, flashcards and garden, and use them on another device. It's optional."],
   ];
-  const i = Math.min(+route()[1] || 0, 2), [h, p] = steps[i];
-  return `<div class="fullscreen center"><h1>${h}</h1><p>${p}</p><p class="mute">${i + 1} of 3</p>
-    <button class="primary block center" data-act="${i === 2 ? "finishOnboard" : "next"}" data-arg="${i + 1}">${i === 2 ? "Get started" : "Next"}</button></div>`;
+  const i = Math.min(+route()[1] || 0, 3), [e, h, p] = steps[i];
+  return `<div class="fullscreen center"><div class="emoji-xl">${e}</div><h1>${h}</h1><p>${p}</p><div class="dots">${steps.map((_, j) => `<i class="${j === i ? "on" : ""}"></i>`).join("")}</div>
+    ${i < 3 ? `<button class="primary wide" data-act="next" data-arg="${i + 1}">Next</button>` : `<a class="btn primary wide" href="#/signup">Create account ✨</a><a class="btn wide" href="#/signin">I have an account</a><button class="ghost wide" data-act="finishOnboard">Continue without an account</button>`}</div>`;
 }
 
 function nightNow() {
@@ -89,16 +101,34 @@ function nightNow() {
   return (mins >= bed - 60 && mins < 24 * 60 && bed >= 12 * 60) || mins < 5 * 60 || (bed < 12 * 60 && mins >= bed - 60 && mins <= bed + 240);
 }
 
+function greet() {
+  const h = new Date().getHours(), n = S.profile.name ? `, ${esc(S.profile.name)}` : "";
+  return h < 5 ? `Up late${n}? 🌙` : h < 12 ? `Good morning${n} ☀️` : h < 17 ? `Good afternoon${n} 🌤️` : h < 21 ? `Good evening${n} 🌆` : `Good night${n} 🌙`;
+}
 function home() {
-  const intents = ["Study", "Message someone", "Relax", "Just bored", "Not sure"], feels = ["Bored", "Tired", "Stressed", "Lonely", "Fine"];
-  const chips = (arr, key) => `<div class="chips">${arr.map(x => `<button class="${ci[key] === x ? "on" : ""}" data-act="ci" data-arg="${key}|${x}">${x}</button>`).join("")}</div>`;
-  const sug = ci.intent ? suggestions() : "";
-  return `<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill">${ICON.lock} Private · your data stays on this phone unless you post in Find your people</span></div>${header("Pause")}
-  ${nightNow() ? `<div class="card warm"><b>It's getting late.</b> <a href="#/night">Open your wind-down</a></div>` : ""}
-  <div class="card"><h2 style="margin-top:0">What did you come to do?</h2>${chips(intents, "intent")}
+  const intents = [["Study", "📚"], ["Message someone", "💬"], ["Relax", "😌"], ["Just bored", "🥱"], ["Not sure", "🤔"]], feels = [["Bored", "😑"], ["Tired", "😴"], ["Stressed", "😣"], ["Lonely", "🥺"], ["Fine", "🙂"]];
+  const chips = (arr, key) => `<div class="chips">${arr.map(([x, e]) => `<button class="${ci[key] === x ? "on" : ""}" data-act="ci" data-arg="${key}|${x}">${e} ${x}</button>`).join("")}</div>`;
+  const sug = ci.intent ? suggestions() : "", g = ST.garden(), due = ST.dueTotal(), tasks = S.tasks.filter(t => !t.del && !t.done).length;
+  const spark = BITES[Math.floor(Date.now() / 86400000) % BITES.length];
+  return `<div class="hello"><div><p class="mute" style="margin:0">${new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</p><h1 style="margin:0">${greet()}</h1></div>
+    <a class="avatar sm" href="#/${AU.signedIn() ? "account" : "me"}" aria-label="Me">${esc((S.profile.name || "🙂")[0].toUpperCase())}</a></div>
+  <span class="pill">${ICON.lock} Private · stays on this phone unless you sign in or post</span>
+  ${nightNow() ? `<a class="card btn block feature" href="#/sleep"><span class="fi f-purple">🌙</span><span><b>It's getting late</b><br><span class="mute">Open your wind-down or sleep sounds</span></span></a>` : ""}
+  <div class="card checkin"><h2 style="margin-top:0">⏸️ What did you come to do?</h2>${chips(intents, "intent")}
     ${ci.intent ? `<h2>How are you feeling? <span class="mute">(optional)</span></h2>${chips(feels, "feeling")}` : ""}</div>
   ${sug}
-  <div class="card"><h2 style="margin-top:0">Planning to scroll?</h2><p class="mute">That's fine. Choose how long, and we'll remind you.</p>
+  ${WB.moodRow()}
+  <div class="grid2">
+    <a class="qt q-red" href="#/pomo"><span>🍅</span><b>Pomodoro</b><small>${ST.todayMin() ? ST.hm(ST.todayMin()) + " today" : "Start focusing"}</small></a>
+    <a class="qt q-pink" href="#/cards"><span>🃏</span><b>Flashcards</b><small>${due ? due + " due" : "Review & learn"}</small></a>
+    <a class="qt q-amber" href="#/goals"><span>🎯</span><b>Goals</b><small>${tasks ? tasks + " to do" : "Plan today"}</small></a>
+    <a class="qt q-purple" href="#/sleep"><span>😴</span><b>Sleep</b><small>Sounds & log</small></a>
+    <a class="qt q-teal" href="#/usage"><span>📊</span><b>App usage</b><small>Track & reflect</small></a>
+    <a class="qt q-green" href="#/people"><span>🫂</span><b>Your people</b><small>Safe circles</small></a>
+  </div>
+  <a class="card btn block feature" href="#/garden"><span class="fi f-green">${g.stage}</span><span style="flex:1"><b>Your focus garden</b><br><span class="mute">${g.grown} plant${g.grown === 1 ? "" : "s"} · ${g.left} min to the next one</span><span class="progress"><i style="width:${g.pct}%;background:linear-gradient(90deg,#22c55e,#84cc16)"></i></span></span></a>
+  <div class="card spark"><span class="tag">✨ Spark of the day · ${spark.t}</span><h2 style="margin-top:0">${spark.h}</h2><p>${spark.b}</p></div>
+  <div class="card"><h2 style="margin-top:0">📱 Planning to scroll?</h2><p class="mute">That's fine. Choose how long, and we'll remind you.</p>
     <button class="primary block" data-act="startScroll" data-arg="10">Remind me in 10 minutes</button>
     <p class="mute">A web app only runs its timer while it is open. Also set a phone alarm to be sure.</p></div>`;
 }
@@ -107,7 +137,7 @@ function suggestions() {
   const out = [], add = (t, d, h) => { if (out.length < 3 && !out.some(o => o.h === h)) out.push({ t, d, h }); };
   const { intent, feeling } = ci;
   if (intent === "Message someone") out.push({ t: "Do it, then come back", d: "Send your message. Pause will be here after.", h: "" });
-  if (intent === "Study") add("Start a focus session", "One goal, a clear end.", "#/focus");
+  if (intent === "Study") { add("🍅 Start a Pomodoro", "Focus in rounds, grow your garden.", "#/pomo"); add("🃏 Review flashcards", "A few minutes of recall.", "#/cards"); }
   if (feeling === "Lonely") { add("Connect with someone", "A small step toward a person.", "#/challenges/Connect"); add("Talk to someone", "Campus counselor or a trusted friend.", "#/talk"); }
   if (feeling === "Stressed") { add("A calm moment", "Breathing, tea or quiet time.", "#/challenges/Calm"); add("Talk to someone", "You don't have to carry it alone.", "#/talk"); }
   if (["Bored", "Tired"].includes(feeling) || ["Just bored", "Relax", "Not sure"].includes(intent)) { add("Read a few short bites", "A finite set. It ends.", "#/read"); add("Try something else", "A quick challenge, 5 to 30 minutes.", "#/challenges"); }
@@ -233,9 +263,17 @@ function talk() {
 }
 
 function me() {
+  const u = AU.user(), n = S.profile.name || (u && u.name) || "";
   return `${header("Me")}
-  ${[["#/night", "🌙 Night wind-down"], ["#/week", "📅 My week"], ["#/notes", "📝 Private mood notes"], ["#/settings", "⚙️ Settings"], ["#/privacy", "🔒 Privacy"], ["#/guide", "📘 User guide"]]
-    .map(([h, t]) => `<a class="card btn block" style="display:block;color:inherit" href="${h}">${t}</a>`).join("")}`;
+  <a class="card btn block feature" href="#/account"><span class="avatar">${esc((n || (u && u.email) || "🙂")[0].toUpperCase())}</span><span style="flex:1"><b>${u ? esc(n || "Your account") : "Create an account"}</b><br><span class="mute">${u ? `☁️ Backed up · ${esc(u.email || "")}` : "Optional · back up and sync your progress"}</span></span></a>
+  <div class="grid2">
+    <a class="qt q-purple" href="#/sleep"><span>😴</span><b>Sleep</b><small>Timer, sounds, log</small></a>
+    <a class="qt q-teal" href="#/usage"><span>📊</span><b>App usage</b><small>Track your time</small></a>
+    <a class="qt q-blue" href="#/week"><span>📅</span><b>My week</b><small>Calm summary</small></a>
+    <a class="qt q-dim" href="#/night"><span>🌙</span><b>Wind-down</b><small>Bedtime checklist</small></a>
+  </div>
+  ${[["#/notes", "📝", "Private mood notes"], ["#/settings", "⚙️", "Settings"], ["#/privacy", "🔒", "Privacy"], ["#/guide", "📘", "User guide"]]
+    .map(([h, e, t]) => `<a class="card btn block feature" href="${h}"><span class="fi f-dim">${e}</span><b>${t}</b></a>`).join("")}`;
 }
 
 function night() {
@@ -259,16 +297,17 @@ function week() {
   if (we.length && wd.length && avg(we) > avg(wd)) lines.push("You slept longer on weekends.");
   const t = S.week.find(w => w.date === today()) || {};
   return `${header("My week", "#/me")}
-  <div class="card"><h2 style="margin-top:0">This week</h2>${lines.map(l => `<p>${l}</p>`).join("")}${days.length ? `<p class="mute">Phone: ${days.filter(d => d.phone != null).map(d => d.phone + "h").join(", ") || "not entered"}</p>` : ""}</div>
+  <div class="card"><h2 style="margin-top:0">This week</h2>${WB.moodWeek()}${lines.map(l => `<p>${l}</p>`).join("")}${days.length ? `<p class="mute">Phone: ${days.filter(d => d.phone != null).map(d => d.phone + "h").join(", ") || "not entered"}</p>` : ""}</div>
   <div class="card"><h2 style="margin-top:0">Today</h2><p class="mute">Optional. Use your phone's own numbers.</p>
     <label for="wp">Hours on phone</label><input id="wp" type="number" min="0" max="24" step="0.5" value="${t.phone ?? ""}">
     <label for="ws">Hours slept last night</label><input id="ws" type="number" min="0" max="24" step="0.5" value="${t.sleep ?? ""}">
     <button class="primary block center" style="margin-top:12px" data-act="saveDay">Save today</button></div>
+  <div class="row"><a class="btn" href="#/usage">📊 App usage</a><a class="btn" href="#/sleep">😴 Sleep log</a></div>
   <button class="ghost block center" data-act="delWeek">Delete this data</button>`;
 }
 
 function notes() {
-  return `${header("Private mood notes", "#/talk")}<p class="mute">Stored only on this phone. Not a clinical record. Never shared.</p>
+  return `${header("Private mood notes", "#/talk")}<p class="mute">${S.settings.syncNotes && AU.signedIn() ? "Backed up privately to your account (you turned this on)." : "Stored only on this phone."} Not a clinical record. Never shared.</p>
   <div class="card"><label for="nt">How do you feel?</label><textarea id="nt" rows="3" maxlength="500"></textarea><button class="primary block center" style="margin-top:8px" data-act="addNote">Save note</button></div>
   ${S.notes.map((n, i) => `<div class="note"><div><span class="mute">${new Date(n.ts).toLocaleString()}</span><br>${esc(n.text)}</div><button class="ghost" data-act="delNote" data-arg="${i}" aria-label="Delete note">Delete</button></div>`).join("")}
   ${S.notes.length ? '<button class="ghost block center" data-act="delNotes">Delete all notes</button>' : '<p class="mute">No notes yet.</p>'}`;
@@ -287,12 +326,14 @@ function settings() {
 
 function privacy() {
   return `${header("Privacy", "#/me")}<div class="card"><p>Pause stores only these things, <b>on this device</b>:</p>
-  <p>• Your settings (text size, dark mode, bedtime)<br>• Focus minutes<br>• Challenges you marked done<br>• Mood notes you wrote<br>• Hours you entered in My week</p>
-  <p>Pause has no accounts, no server, no analytics and no trackers. It never asks for your name, phone number, location or contacts. Nobody else can see your data.</p>
+  <p>• Settings, nickname, daily mood emoji<br>• Focus and Pomodoro minutes, goals, tasks, flashcards<br>• App usage and sleep you logged<br>• Challenges you marked done<br>• Mood notes you wrote</p>
+  <p>Pause has no analytics, no ads and no trackers. It never asks for your phone number, location or contacts. Nobody else can see your data.</p>
   <p>Delete any of it, or all of it, in Settings.</p></div>
   <div class="card"><p><b>Everything stays on your phone except what you choose to post in Find your people.</b> That uses a made-up name and can be deleted any time.</p>
   <p>If you join, Pause's server stores only: a random anonymous id (the secret key is kept on this phone), your made-up display name, your space, the circles you joined, and your posts, replies and reactions. No real name, photo, email or phone number. No analytics. Pause does not keep IP addresses; our host may process them briefly to deliver the page.</p>
-  <p>To remove it all, use <b>Leave community and delete my posts</b> in Me, then Settings.</p></div>`;
+  <p>To remove it all, use <b>Leave community and delete my posts</b> in Me, then Settings.</p></div>
+  <div class="card"><p><b>☁️ Optional account</b></p><p>If you create an account, Pause stores your email and a private backup of the data above (except mood notes, unless you turn that on) in your own row in our database. Only you can read it. Your community posts stay anonymous and are not linked to your account.</p>
+  <p>Delete your account and backup any time in Me, then Account.</p></div>`;
 }
 
 function guide() {
@@ -302,7 +343,9 @@ function guide() {
   <li>Try a focus session, a reading set, or a challenge.</li>
   <li>Use <b>Talk to someone</b> if you need a person.</li>
   <li>Check <b>Stay safe</b> for scams, privacy and notifications.</li>
-  <li>Your data stays on your phone. Delete it any time in Me, then Settings.</li></ol></div>
+  <li>Use the <b>Study</b> tab for Pomodoro 🍅, goals 🎯 and flashcards 🃏. Every 25 focus minutes grows a plant in your garden 🌳.</li>
+  <li>In <b>Me</b>, log your sleep 😴 and app usage 📊, and play sleep sounds.</li>
+  <li>Your data stays on your phone unless you create an account to back it up. Delete it any time in Me, then Settings.</li></ol></div>
   <p class="mute">Pause cannot see or block other apps or measure real phone use. Timers run only while it is open.</p>`;
 }
 
@@ -310,12 +353,13 @@ function guide() {
 const MAIN = { "": home, scroll: scrollTimer, do: doMenu, focus: focusPage, play, challenges, challenge, read, safe, talk, me, night, week, notes, settings, privacy, guide };
 function render() {
   const r = route(), name = r[0] || "";
-  if (!S.onboarded && name !== "onboard") return go("#/onboard");
+  if (!S.onboarded && !["onboard", "signin", "signup", "reset", "account"].includes(name)) return go("#/onboard");
   const fn = name === "onboard" ? onboard : MAIN[name] || home;
-  const focusing = timer() && timer().kind === "focus" && name === "focus";
+  const focusing = timer() && ((timer().kind === "focus" && name === "focus") || (timer().kind === "pomo" && name === "pomo"));
   const bare = name === "onboard" || focusing || name === "talk";
-  const tab = { challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
-  $("#app").innerHTML = fn() + (name === "onboard" ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
+  const tab = { ...ST.tabs, ...WB.tabs, ...AU.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
+  const preOnboard = !S.onboarded;
+  $("#app").innerHTML = fn() + (name === "onboard" || preOnboard ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
     ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}</div></nav>`}`)
     + (toastMsg ? `<div role="status" style="position:fixed;top:12px;left:12px;right:12px;max-width:456px;margin:auto;background:var(--ink);color:var(--bg);padding:12px;border-radius:12px;z-index:9">${esc(toastMsg)}</div>` : "");
 }
@@ -324,7 +368,7 @@ function render() {
 const A = {
   next: a => go(`#/onboard/${a}`),
   finishOnboard: () => { S.onboarded = true; save(); go("#/"); },
-  ci: a => { const [k, v] = a.split("|"); ci[k] = ci[k] === v ? null : v; if (k === "intent" && !ci.intent) ci.feeling = null; render(); },
+  ci: a => { const [k, v] = a.split("|"); ci[k] = ci[k] === v ? null : v; if (k === "intent" && !ci.intent) ci.feeling = null; if (k === "intent" && ci.intent) { S.checkins.push(Date.now()); S.checkins = S.checkins.slice(-400); save(); } render(); },
   startScroll: a => { startTimer("scroll", +a); go("#/scroll"); render(); },
   stopTimer: a => { clearTimer(); go(a || "#/"); render(); },
   fmin: a => { focusSetup.min = +a; render(); },
@@ -340,22 +384,31 @@ const A = {
   nextBite: () => { bites.idx++; render(); $("#app").scrollTop = 0; },
   shareMsg: a => share(FRIEND_MSGS[+a]),
   addNote: () => { const v = $("#nt").value.trim(); if (!v) return; S.notes.unshift({ ts: Date.now(), text: v }); save(); render(); },
-  delNote: a => { S.notes.splice(+a, 1); save(); render(); },
-  delNotes: () => { if (confirm("Delete all notes?")) { S.notes = []; save(); render(); } },
+  delNote: a => { const n = S.notes[+a]; if (n) S.tomb.push("n" + n.ts); S.notes.splice(+a, 1); save(); render(); },
+  delNotes: () => { if (confirm("Delete all notes?")) { S.notes.forEach(n => S.tomb.push("n" + n.ts)); S.notes = []; save(); render(); } },
   saveDay: () => {
     const p = $("#wp").value, s = $("#ws").value, d = today();
     S.week = S.week.filter(w => w.date !== d);
     S.week.push({ date: d, phone: p === "" ? null : +p, sleep: s === "" ? null : +s }); save(); toast("Saved on this phone.");
   },
-  delWeek: () => { if (confirm("Delete your My week data?")) { S.week = []; save(); render(); } },
-  delAll: async () => { if (confirm("Delete all your data from this phone?")) { if (P.isJoined() && !(await P.leaveSilently())) return toast("Could not reach the server to delete your community posts. Try again online."); localStorage.removeItem(KEY); S = structuredClone(DEFAULTS); applySettings(); go("#/onboard"); render(); } },
+  delWeek: () => { if (confirm("Delete your My week data?")) { S.week.forEach(w => S.tomb.push(w.date)); S.week = []; save(); render(); } },
+  delAll: async () => { if (confirm("Delete all your data from this phone?")) { if (P.isJoined() && !(await P.leaveSilently())) return toast("Could not reach the server to delete your community posts. Try again online."); if (AU.signedIn() && !(await AU.wipeCloud())) return toast("Could not reach the server to delete your backup. Try again online."); localStorage.removeItem(KEY); S = structuredClone(DEFAULTS); applySettings(); go("#/onboard"); render(); } },
 };
 const P = initPeople({ esc, header, render, go, toast, getS: () => S, save });
 Object.assign(A, P.actions); MAIN.people = P.people; MAIN.mod = P.mod;
+const tickHooks = [];
+const ctx = {
+  get S() { return S; }, setS: v => { S = v; }, save, saveLocal, esc, header, render, go, toast, route, today, fmt, weekStart, uid, ICON, hero,
+  timer, timeLeft, startTimer, clearTimer, tickHooks,
+};
+const ST = initStudy(ctx), WB = initWell(ctx);
+AU = initAuth(ctx);
+for (const m of [ST, WB, AU]) { Object.assign(MAIN, m.routes); Object.assign(A, m.actions); }
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]"); if (g) { history.length > 1 ? history.back() : go(g.dataset.go); return; }
   const b = e.target.closest("[data-act]"); if (b && A[b.dataset.act]) A[b.dataset.act](b.dataset.arg);
 });
+document.addEventListener("submit", e => { const f = e.target.closest("form[data-act]"); if (f) { e.preventDefault(); A[f.dataset.act] && A[f.dataset.act](); } });
 document.addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.field) {
@@ -372,10 +425,17 @@ setInterval(() => {
   const el = $("#tm"), t = timer();
   if (el && t) { if (timeLeft() <= 0) render(); else el.textContent = fmt(timeLeft()); }
   const c = $("#clock"); if (c) c.textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  tickHooks.forEach(f => f());
+  if (!document.hidden) { pauseSecs++; if (pauseSecs >= 30) flushPauseTime(); }
 }, 1000);
+let pauseSecs = 0;
+function flushPauseTime() { if (!pauseSecs) return; const d = today(); S.pauseTime[d] = (S.pauseTime[d] || 0) + pauseSecs; pauseSecs = 0; saveLocal(); }
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushPauseTime(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && timer()) render(); });
 
 bites.n = S.settings.bites;
 applySettings();
+AU.bootFromHash();
 render();
+if (AU.signedIn()) AU.syncNow();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

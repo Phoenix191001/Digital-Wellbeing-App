@@ -7,6 +7,16 @@ Plain HTML, CSS and JavaScript, installable as a PWA, works offline after the fi
 ## Features
 F1 Pause check-in · F2 Finish-line bites (24 cards) · F3 Focus sessions + play timer · F4 Night wind-down · F5 Something else to do (25 challenges, share invite) · F6 Talk to someone + private mood notes · F7 Stay safe (8 cards) · F8 My week · F9 Onboarding, settings, privacy.
 
+## New: Study, wellbeing and accounts
+- **Study tab:** Pomodoro 🍅 (rounds, breaks, chime, progress ring), weekly study goals 🎯 + today's tasks, flashcards 🃏 with spaced repetition (Leitner boxes), and a **focus garden** 🌳 that grows one plant per 25 focus minutes and never wilts (no streaks, nothing lost).
+- **Me:** sleep 😴 (I'm going to sleep / I'm awake log, generated sleep sounds with auto-off timer), app usage 📊 (self-logged from the phone's Screen Time, 7-day chart, optional gentle limits, plus automatic "pauses taken" and time in Pause), daily mood emoji.
+- **Optional accounts ☁️** (Supabase Auth): sign up, sign in, forgot password, sync across devices, sign out, delete account. Mood notes are only uploaded if the student turns it on. Community posts stay anonymous and are never linked to an account.
+
+**Turn on accounts (once):**
+1. Supabase → SQL Editor → run `supabase-accounts.sql`.
+2. Supabase → Authentication → URL Configuration: **Site URL** `https://pause-gamma.vercel.app`, and add the same URL under **Redirect URLs**.
+3. Supabase → Authentication → Sign In / Providers → Email: decide on **Confirm email**. On = students must click a link (Supabase's built-in mailer only sends a few emails per hour; add your own SMTP for a class). Off = instant sign-up. The app handles both.
+
 ## Privacy by design
 All data is in the phone's `localStorage`. No accounts, no server, no analytics. This is why there is **no Supabase**: the spec (section 3, principle 1) forbids a server database.
 
@@ -37,4 +47,4 @@ Safe, **space-separated** (female / male, self-declared) interest circles. Anony
 
 (Upstash Redis is also supported through `KV_REST_API_URL` / `KV_REST_API_TOKEN`; Supabase takes priority if both are set.)
 
-**Tests:** `node --test tests/api.test.js` (API rules, in-memory store). `TEST_SUPABASE=1` runs the same tests through the Supabase adapter against a real Postgres via `tests/pgshim.js`. With `PORT=8124 node tests/server.js` running, `node tests/ui.test.js` runs the browser flows (needs Playwright).
+**Tests:** `node tests/features.test.js` (Study, wellbeing, accounts with a mocked Supabase) and `node --test tests/account.test.mjs` (delete-account API, sync merge rules). Also: `node --test tests/api.test.js` (API rules, in-memory store). `TEST_SUPABASE=1` runs the same tests through the Supabase adapter against a real Postgres via `tests/pgshim.js`. With `PORT=8124 node tests/server.js` running, `node tests/ui.test.js` runs the browser flows (needs Playwright).
