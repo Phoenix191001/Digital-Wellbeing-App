@@ -28,7 +28,13 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 const fmt = s => { s = Math.max(0, Math.round(s)); return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
 function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
 
+// Layout: "phone" (phone-sized view, framed on big screens) or "pc" (full screen with a side menu).
+// No choice yet = pick by screen size.
+const layout = () => S.settings.layout || (window.innerWidth >= 1024 && window.matchMedia("(pointer: fine)").matches ? "pc" : "phone");
+window.addEventListener("resize", () => { if (!S.settings.layout && document.documentElement.dataset.layout !== layout()) applySettings(); });
 function applySettings() {
+  document.documentElement.dataset.layout = layout();
+  const ls = document.getElementById("lswitch"); if (ls) { const pc = layout() === "pc"; ls.dataset.arg = pc ? "phone" : "pc"; ls.textContent = pc ? "📱 Phone view" : "💻 Full-screen view"; }
   document.documentElement.dataset.dark = S.settings.dark ? "1" : "0";
   document.documentElement.dataset.size = S.settings.size;
   document.documentElement.dataset.theme = S.settings.theme || "red";
@@ -94,8 +100,12 @@ function onboard() {
     ["💬", "A real person is one tap away", "The <b>Talk to someone</b> button shows on every main screen. سكون is not a counselor and cannot diagnose. It can point you to people who can help."],
     ["☁️", "Save your progress?", "Create a free account to back up your study goals, flashcards and garden, and use them on another device. It's optional."],
   ];
-  const i = Math.min(+route()[1] || 0, 3), [e, h, p] = steps[i];
-  return `<div class="fullscreen center">${i === 0 ? `<img src="icon-192.png" alt="سكون logo" width="96" height="96" style="border-radius:26px;margin:0 auto 6px;box-shadow:0 10px 40px rgba(217,31,42,.35)">` : `<div class="emoji-xl">${e}</div>`}<h1>${h}</h1><p>${p}</p><div class="dots">${steps.map((_, j) => `<i class="${j === i ? "on" : ""}"></i>`).join("")}</div>
+  const i = Math.min(+route()[1] || 0, 3), [e, h, p] = steps[i], cur = layout();
+  const pick = i === 0 ? `<p style="margin-top:18px"><b>How do you want to use it?</b></p><div class="layoutpick">
+      <button class="lp ${cur === "phone" ? "on" : ""}" data-act="setLayout" data-arg="phone" aria-pressed="${cur === "phone"}"><span>📱</span><b>Phone</b><small>Phone-sized view, made for one hand</small></button>
+      <button class="lp ${cur === "pc" ? "on" : ""}" data-act="setLayout" data-arg="pc" aria-pressed="${cur === "pc"}"><span>💻</span><b>Computer</b><small>Fills your whole screen, with a side menu</small></button></div>
+    <p class="mute" style="font-size:.85em">You can switch any time in Settings.</p>` : "";
+  return `<div class="fullscreen center">${i === 0 ? `<img src="icon-192.png" alt="سكون logo" width="96" height="96" style="border-radius:26px;margin:0 auto 6px;box-shadow:0 10px 40px rgba(217,31,42,.35)">` : `<div class="emoji-xl">${e}</div>`}<h1>${h}</h1><p>${p}</p>${pick}<div class="dots">${steps.map((_, j) => `<i class="${j === i ? "on" : ""}"></i>`).join("")}</div>
     ${i < 3 ? `<button class="primary wide" data-act="next" data-arg="${i + 1}">Next</button>` : `<a class="btn primary wide" href="#/signup">Create account ✨</a><a class="btn wide" href="#/signin">I have an account</a><button class="ghost wide" data-act="finishOnboard">Continue without an account</button>`}</div>`;
 }
 
@@ -133,7 +143,7 @@ function home() {
   const sug = ci.intent ? suggestions() : "", g = ST.garden(), due = ST.dueTotal(), tasks = S.tasks.filter(t => !t.del && !t.done).length;
   const spark = BITES[Math.floor(Date.now() / 86400000) % BITES.length];
   return `<div class="hello"><div><p class="mute" style="margin:0">${new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</p><h1 style="margin:0">${greet()}</h1></div>
-    <a class="avatar sm" href="#/${AU.signedIn() ? "account" : "me"}" aria-label="Me">${esc((S.profile.name || "🙂")[0].toUpperCase())}</a></div>
+    <a class="avatar sm" href="#/${AU.signedIn() ? "account" : "me"}" aria-label="Me">${esc(Array.from(S.profile.name || "🙂")[0].toUpperCase())}</a></div>
   <span class="pill">${ICON.lock} Private · stays on this phone unless you sign in or post</span>
   ${!standalone() && !S.flags.installHide ? `<div class="card installcard"><a href="#/install"><span class="fi f-teal">📲</span><span><b>Install سكون on your phone</b><br><span class="mute">Add it to your home screen like an app</span></span></a><button class="ghost xbtn" data-act="installHide" aria-label="Hide install tip">✕</button></div>` : ""}
   ${nightNow() ? `<a class="card btn block feature" href="#/sleep"><span class="fi f-purple">🌙</span><span><b>It's getting late</b><br><span class="mute">Open your wind-down or sleep sounds</span></span></a>` : ""}
@@ -297,7 +307,7 @@ function talk() {
 function me() {
   const u = AU.user(), n = S.profile.name || (u && u.name) || "", [bw, bt] = IN.badgeCount();
   return `${header("Me")}
-  <a class="card btn block feature" href="#/account"><span class="avatar">${esc((n || (u && u.email) || "🙂")[0].toUpperCase())}</span><span style="flex:1"><b>${u ? esc(n || "Your account") : "Create an account"}</b><br><span class="mute">${u ? `☁️ Backed up · ${esc(u.email || "")}` : "Optional · back up and sync your progress"}</span></span></a>
+  <a class="card btn block feature" href="#/account"><span class="avatar">${esc(Array.from(n || (u && u.email) || "🙂")[0].toUpperCase())}</span><span style="flex:1"><b>${u ? esc(n || "Your account") : "Create an account"}</b><br><span class="mute">${u ? `☁️ Backed up · ${esc(u.email || "")}` : "Optional · back up and sync your progress"}</span></span></a>
   <div class="grid2">
     <a class="qt q-blue" href="#/insights"><span>📈</span><b>Insights</b><small>Charts & trends</small></a>
     <a class="qt q-amber" href="#/achievements"><span>🏆</span><b>Achievements</b><small>${bw} of ${bt} unlocked</small></a>
@@ -356,6 +366,7 @@ function settings() {
   return `${header("Settings ⚙️", "#/me")}
   ${group("Appearance", [
     row("🎨", "Theme", s.theme === "midnight" ? "Midnight (navy & lavender)" : "Red & black", "", `<select class="ssel" data-field="theme" aria-label="Theme"><option value="red" ${s.theme !== "midnight" ? "selected" : ""}>Red & black</option><option value="midnight" ${s.theme === "midnight" ? "selected" : ""}>Midnight</option></select>`),
+    row(layout() === "pc" ? "💻" : "📱", "Layout", layout() === "pc" ? "Computer: full screen with a side menu" : "Phone: phone-sized view", "", `<select class="ssel" data-field="layout" aria-label="Layout"><option value="phone" ${layout() === "phone" ? "selected" : ""}>📱 Phone</option><option value="pc" ${layout() === "pc" ? "selected" : ""}>💻 Computer</option></select>`),
     row("🌗", "Dark mode", "Easier on the eyes at night", "", sw("dark", s.dark)),
     row("🔠", "Text size", "", "", `<select class="ssel" data-field="size" aria-label="Text size">${[["s", "Small"], ["m", "Medium"], ["l", "Large"], ["xl", "Extra large"]].map(([v, n]) => `<option value="${v}" ${s.size === v ? "selected" : ""}>${n}</option>`).join("")}</select>`)])}
   ${group("Usage & goals", [
@@ -413,8 +424,9 @@ function render() {
   if (["safe", "talk", "people"].includes(name) && !S.flags[name]) { S.flags[name] = true; saveLocal(); }
   const tab = { install: "me", ...ST.tabs, ...WB.tabs, ...AU.tabs, ...IN.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
   const preOnboard = !S.onboarded;
+  $("#app").classList.toggle("nonav", name === "onboard" || preOnboard || !!focusing);
   $("#app").innerHTML = fn() + (name === "onboard" || preOnboard ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
-    ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}</div></nav>`}`)
+    ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div><a class="brand" href="#/" aria-label="سكون home"><img src="icon-192.png" alt="" width="36" height="36">سكون</a>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}<button class="navswitch" data-act="setLayout" data-arg="phone">📱 Switch to phone view</button></div></nav>`}`)
     + (toastMsg ? `<div role="status" style="position:fixed;top:12px;left:12px;right:12px;max-width:456px;margin:auto;background:var(--ink);color:var(--bg);padding:12px;border-radius:12px;z-index:9">${esc(toastMsg)}</div>` : "");
 }
 
@@ -432,6 +444,7 @@ const A = {
   fcustom: () => { if ([10, 15, 25, 45, 60, 90].includes(focusSetup.min)) focusSetup.min = 30; render(); },
   emergencyStop: () => { if (confirm("Strict mode is on. Stop this session anyway? That's okay if you need to.")) { clearTimer(); go("#/study"); render(); } },
   installNow: async () => { if (!deferredInstall) return; deferredInstall.prompt(); const r = await deferredInstall.userChoice.catch(() => ({})); deferredInstall = null; if (r && r.outcome === "accepted") { S.flags.installed = true; saveLocal(); } render(); },
+  setLayout: a => { S.settings.layout = a === "pc" ? "pc" : "phone"; save(); applySettings(); render(); },
   installHide: () => { S.flags.installHide = true; saveLocal(); render(); },
   exportData: () => { const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), app: "Sukoon", data: S }, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(blob), l = document.createElement("a"); l.href = u; l.download = `pause-data-${today()}.json`; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); toast("Exported 💾"); },
   clearUsage: () => { if (!confirm("Delete all logged app minutes?")) return; for (const k of Object.keys(S.usage)) S.usage[k] = { apps: {}, u: Date.now() }; save(); render(); toast("Usage history cleared 🧹"); },

@@ -155,7 +155,7 @@ export function initAuth(c) {
       <a class="btn primary wide" href="#/signup">Create account</a><a class="btn wide" href="#/signin">Sign in</a></div>`;
     const name = c.S.profile.name || A.user.name || "", when = sync.at ? new Date(sync.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
     return `${header("Account ☁️", "#/me")}${note()}
-    <div class="card center"><div class="avatar">${esc((name || A.user.email || "?")[0].toUpperCase())}</div><h2 style="margin:.3em 0 0">${esc(name || "Hi there")}</h2><p class="mute">${esc(A.user.email || "")}</p>
+    <div class="card center"><div class="avatar">${esc(Array.from(name || A.user.email || "?")[0].toUpperCase())}</div><h2 style="margin:.3em 0 0">${esc(name || "Hi there")}</h2><p class="mute">${esc(A.user.email || "")}</p>
       <p>${sync.state === "syncing" ? "🔄 Backing up…" : sync.state === "error" ? "⚠️ Couldn't back up. We'll try again." : sync.at ? `✅ Backed up at ${when}` : "☁️ Ready to back up"}</p>
       <button class="wide" data-act="syncNow">Back up now</button></div>
     <div class="card"><label for="pn">Nickname</label><div class="row"><input id="pn" type="text" maxlength="30" value="${esc(name)}"><button style="flex:0 0 auto" data-act="saveName">Save</button></div>
