@@ -259,8 +259,8 @@ nav.tabs .brand,nav.tabs .navswitch{display:none}
  :root[data-layout="pc"]{--side:248px}
  :root[data-layout="pc"] #app{padding:36px 48px 64px calc(var(--side) + 48px)}
  :root[data-layout="pc"] #app.nonav{padding-left:48px}
- :root[data-layout="pc"] #app>*:not(nav):not(.talk):not(.confetti){max-width:1080px;margin-left:auto;margin-right:auto}
- :root[data-layout="pc"] #app>.fullscreen{max-width:620px!important}
+ :root[data-layout="pc"] .page{max-width:1080px}
+ :root[data-layout="pc"] #app.nonav .page{max-width:620px}
  :root[data-layout="pc"] nav.tabs{top:0;bottom:0;left:0;right:auto;width:var(--side);border-top:0;border-right:1px solid var(--line);padding:22px 14px;background:var(--card);backdrop-filter:none}
  :root[data-layout="pc"] nav.tabs div{flex-direction:column;gap:4px;padding:0;height:100%}
  :root[data-layout="pc"] nav.tabs a{flex:0 0 auto;display:flex;align-items:center;gap:12px;text-align:left;font-size:1em;font-weight:600;padding:8px 12px;min-height:50px;border-radius:16px}
@@ -278,3 +278,16 @@ nav.tabs .brand,nav.tabs .navswitch{display:none}
  :root[data-layout="pc"] .flip{height:320px}
  :root[data-layout="pc"] .gplot{height:200px}
 }
+
+/* ---------- one centred column for all content + smoother feel ---------- */
+#app{display:flex;flex-direction:column}
+.page{flex:1 0 auto;width:100%;margin:0 auto;min-width:0}
+.toast{position:fixed;top:12px;left:12px;right:12px;max-width:456px;margin:auto;background:var(--ink);color:var(--bg);padding:12px 14px;border-radius:14px;z-index:60;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:toastin .22s ease-out}
+@keyframes toastin{from{opacity:0;transform:translateY(-12px)}}
+button,.btn,.qt,nav.tabs a,.srow2,.card.btn{transition:transform .12s ease,filter .15s,background-color .15s}
+button:active,.btn:active,.qt:active,nav.tabs a:active,.srow2:active,.card.btn:active{transform:scale(.96)}
+.flip:active,.bar:active,.sw:active{transform:none}
+@media(hover:hover){.qt:hover{filter:brightness(1.1);transform:translateY(-2px)}.card.btn:hover,.srow2:hover{filter:brightness(1.12)}}
+.pop{animation:pop .32s ease}
+@keyframes pop{40%{transform:scale(1.4)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}

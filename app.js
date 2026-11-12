@@ -8,7 +8,7 @@ import { COUNSELOR, BITES, GROUPS, CHALLENGES, MEET_TIPS, BREAKS, SAFE, FRIEND_M
 /* ---------- storage: everything lives on this device only ---------- */
 const KEY = "pause.v1";
 const DEFAULTS = {
-  settings: { size: "m", dark: true, theme: "red", bites: 5, bedtime: "23:30", syncNotes: false, goal: 180, strict: false }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null,
+  settings: { size: "m", dark: true, theme: "red", bites: 5, bedtime: "23:30", syncNotes: false, goal: 180, strict: false, haptics: true }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null,
   profile: { name: "" }, pomo: { work: 25, short: 5, long: 15, rounds: 4, sound: true }, goals: [], tasks: [], decks: [], reviews: [],
   usage: {}, limits: {}, sleepLog: [], sleepStart: null, mood: {}, checkins: [], pauseTime: {}, tomb: [],
   why: "", notNow: [], badges: {}, nightDone: {}, flags: {},
@@ -82,6 +82,48 @@ async function share(text) {
     toast("Copied. Paste it into a chat.");
   } catch (e) { if (e && e.name !== "AbortError") toast("Could not share. Select and copy the text instead."); }
 }
+/* ---------- smooth rendering: patch the DOM instead of replacing it ---------- */
+// Keeps focus, typed text, scroll position, open <details> and running animations while the UI updates.
+function patch(root, html) {
+  const t = document.createElement("template"); t.innerHTML = html;
+  morphKids(root, t.content);
+}
+// Match children by identity (tag + id/class), so a card added above doesn't force everything below to be rebuilt.
+const sig = n => (n.nodeType === 1 ? `${n.tagName}#${n.id}.${n.getAttribute("class") || ""}` : `#${n.nodeType}`);
+function morphKids(dst, src) {
+  const s = [...src.childNodes];
+  let j = 0;
+  for (const b of s) {
+    const cur = dst.childNodes[j], want = sig(b);
+    if (cur && sig(cur) === want) { morphNode(cur, b, dst); j++; continue; }
+    let hit = null;
+    for (let k = j + 1, n = 0; k < dst.childNodes.length && n < 8; k++, n++) if (sig(dst.childNodes[k]) === want) { hit = dst.childNodes[k]; break; }
+    if (hit) { dst.insertBefore(hit, cur); morphNode(hit, b, dst); j++; continue; }
+    if (cur && cur.nodeType === b.nodeType && (cur.nodeType !== 1 || cur.tagName === b.tagName) && !s.slice(s.indexOf(b) + 1, s.indexOf(b) + 9).some(x => sig(x) === sig(cur))) { morphNode(cur, b, dst); j++; continue; }
+    dst.insertBefore(b, cur || null); j++;
+  }
+  while (dst.childNodes.length > j) dst.removeChild(dst.lastChild);
+}
+function morphNode(a, b, dst) {
+  if (a.nodeType !== b.nodeType || (a.nodeType === 1 && a.tagName !== b.tagName)) return void dst.replaceChild(b, a);
+  if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  const keep = a.tagName === "DETAILS" ? "open" : null;
+  for (const at of [...a.attributes]) if (at.name !== keep && !b.hasAttribute(at.name)) a.removeAttribute(at.name);
+  for (const at of [...b.attributes]) if (at.name !== keep && a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  const typing = a === document.activeElement;
+  if (a.tagName === "TEXTAREA") { if (!typing && a.value !== b.value) a.value = b.value; return; }
+  if (a.tagName === "INPUT") {
+    if (a.type === "checkbox" || a.type === "radio") a.checked = b.checked;
+    else if (!typing && a.type !== "file" && a.value !== b.value) a.value = b.value;
+    return;
+  }
+  morphKids(a, b);
+  if (a.tagName === "SELECT" && !typing && a.value !== b.value) a.value = b.value;
+}
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let lastRoute = null;
+// Tiny vibration on taps (Android; iPhone ignores it). Can be turned off in Settings.
+function buzz(ms = 8) { try { if (S.settings.haptics !== false && navigator.vibrate && (!navigator.userActivation || navigator.userActivation.isActive)) navigator.vibrate(ms); } catch { /* ignore */ } }
 function toast(m) { toastMsg = m; render(); setTimeout(() => { toastMsg = ""; render(); }, 2500); }
 
 /* ---------- routing ---------- */
@@ -376,6 +418,7 @@ function settings() {
     row("📖", "Cards per reading set", `<span id="bcv">${s.bites}</span> cards`, "", `<input type="range" min="3" max="10" value="${s.bites}" data-field="bites" aria-label="Cards per reading set" style="width:110px">`)])}
   ${group("Focus & reminders", [
     row("🔒", "Strict focus by default", "Sessions can't be paused or skipped (emergency stop stays)", "", sw("strict", s.strict)),
+    row("📳", "Haptic feedback", "A tiny vibration when you tap (Android phones)", "", sw("haptics", s.haptics !== false)),
     row("🔔", "Chime when a round ends", "Pomodoro sound and vibration", "", `<label class="sw"><input type="checkbox" data-pomo="sound" ${S.pomo.sound ? "checked" : ""}><i></i></label>`)],
     "Reminders only work while سكون is open. A website can't send alerts in the background or block other apps.")}
   ${group("Account & privacy", [
@@ -425,9 +468,12 @@ function render() {
   const tab = { install: "me", ...ST.tabs, ...WB.tabs, ...AU.tabs, ...IN.tabs, challenges: "do", challenge: "do", focus: "do", play: "do", scroll: "", night: "me", people: "do", mod: "me", week: "me", notes: "me", settings: "me", privacy: "me", guide: "me", talk: "" }[name] ?? name;
   const preOnboard = !S.onboarded;
   $("#app").classList.toggle("nonav", name === "onboard" || preOnboard || !!focusing);
-  $("#app").innerHTML = fn() + (name === "onboard" || preOnboard ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
-    ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div><a class="brand" href="#/" aria-label="سكون home"><img src="icon-192.png" alt="" width="36" height="36">سكون</a>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}<button class="navswitch" data-act="setLayout" data-arg="phone">📱 Switch to phone view</button></div></nav>`}`)
-    + (toastMsg ? `<div role="status" style="position:fixed;top:12px;left:12px;right:12px;max-width:456px;margin:auto;background:var(--ink);color:var(--bg);padding:12px;border-radius:12px;z-index:9">${esc(toastMsg)}</div>` : "");
+  const chrome = name === "onboard" || preOnboard ? "" : `${bare ? "" : '<a class="talk" href="#/talk">💬 Talk to someone</a>'}
+    ${focusing ? "" : `<nav class="tabs" aria-label="Main"><div><a class="brand" href="#/" aria-label="سكون home"><img src="icon-192.png" alt="" width="36" height="36">سكون</a>${TABS.map(([h, i, l]) => `<a href="#/${h}" class="${tab === h ? "on" : ""}" ${tab === h ? 'aria-current="page"' : ""}>${ICON[i]}${l}</a>`).join("")}<button class="navswitch" data-act="setLayout" data-arg="phone">📱 Switch to phone view</button></div></nav>`}`;
+  patch($("#app"), `<div class="page">${fn()}</div>${chrome}` + (toastMsg ? `<div class="toast" role="status">${esc(toastMsg)}</div>` : ""));
+  // soft fade-in only when the screen itself changes (not on every update)
+  const here = location.hash;
+  if (here !== lastRoute) { lastRoute = here; const pg = $("#app .page"); if (pg && pg.animate && !reduceMotion()) pg.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,.7,.2,1)" }); }
 }
 
 /* ---------- actions ---------- */
@@ -480,11 +526,12 @@ AU = initAuth(ctx); IN = initInsights(ctx);
 for (const m of [ST, WB, AU, IN]) { Object.assign(MAIN, m.routes); Object.assign(A, m.actions); }
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]"); if (g) { history.length > 1 ? history.back() : go(g.dataset.go); return; }
-  const b = e.target.closest("[data-act]"); if (b && A[b.dataset.act]) A[b.dataset.act](b.dataset.arg);
+  const b = e.target.closest("[data-act]"); if (b && A[b.dataset.act]) { buzz(); A[b.dataset.act](b.dataset.arg); }
 });
 document.addEventListener("submit", e => { const f = e.target.closest("form[data-act]"); if (f) { e.preventDefault(); A[f.dataset.act] && A[f.dataset.act](); } });
 document.addEventListener("change", e => {
   const el = e.target;
+  if (el.type === "checkbox" && el.checked && el.closest(".check")) { buzz(14); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); setTimeout(() => el.classList.remove("pop"), 400); }
   if (el.dataset.field) {
     const k = el.dataset.field, v = el.type === "checkbox" ? el.checked : k === "bites" ? +el.value : el.value;
     S.settings[k] = v; if (k === "bites") bites.n = v; if (k === "bedtime") S.settings.bedSet = true; save(); applySettings();
