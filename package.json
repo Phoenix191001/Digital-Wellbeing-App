@@ -1,0 +1,9 @@
+{
+  "name": "sukoon",
+  "private": true,
+  "description": "سكون (Sukoon): static PWA + Vercel serverless functions in /api",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

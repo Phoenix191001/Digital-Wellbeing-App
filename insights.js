@@ -5,6 +5,7 @@ import { APPS } from "./wellbeing.js";
 const dkey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const daysBack = n => Array.from({ length: n }, (_, i) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - (n - 1 - i)); return d; });
 const hm = m => { m = Math.round(m); return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`; };
+const WEEKDAY = new Intl.DateTimeFormat([], { weekday: "short" });
 const hrs = m => `${(m / 60).toFixed(1)}h`;
 
 export function initInsights(c) {
@@ -16,15 +17,25 @@ export function initInsights(c) {
   const goal = () => S().settings.goal || 180;
   const dayTotal = k => Object.values((S().usage[k] || {}).apps || {}).reduce((a, b) => a + b, 0);
   const logged = k => dayTotal(k) > 0;
-  const focusOn = k => S().focus.some(f => dkey(new Date(f.ts)) === k);
-  const reviewedOn = k => S().reviews.some(r => dkey(new Date(r.ts)) === k);
+  // Summaries are rebuilt only when the data changes (c.ver) or the day changes, not on every tap.
+  let memo = { key: "" };
+  function D() {
+    const key = c.ver() + "|" + dkey(new Date());
+    if (memo.key === key) return memo;
+    const s = S(), ev = new Map();
+    for (const x of s.sleepLog) { if (x.del) continue; const t = new Date(x.start - 8 * 3600000); if (t.getHours() >= 10) { const k = dkey(t); if (!ev.has(k)) ev.set(k, x); } }
+    memo = { key, fd: new Set(s.focus.map(f => dkey(new Date(f.ts)))), rd: new Set(s.reviews.map(r => dkey(new Date(r.ts)))), ev, nights: new Map(), streaks: {}, badges: null };
+    return memo;
+  }
+  const focusOn = k => D().fd.has(k);
+  const reviewedOn = k => D().rd.has(k);
   const streak = ok => { let n = 0; const d = new Date(); d.setHours(12); if (!ok(dkey(d))) d.setDate(d.getDate() - 1); while (n < 400 && ok(dkey(d))) { n++; d.setDate(d.getDate() - 1); } return n; };
   // A "phone-free night" for evening k: lights out (tapped "I'm going to sleep") by bedtime + 30 min, or "charged the phone away from my bed" ticked.
-  function night(k) {
+  function night(k) { const m = D(); if (!m.nights.has(k)) m.nights.set(k, nightCalc(k)); return m.nights.get(k); }
+  function nightCalc(k) {
     const [bh, bm] = S().settings.bedtime.split(":").map(Number), ev = new Date(k + "T12:00:00");
     const bed = new Date(ev); bed.setHours(bh, bm, 0, 0); if (bh < 12) bed.setDate(bed.getDate() + 1);
-    const from = new Date(ev); from.setHours(18, 0, 0, 0); const to = new Date(ev); to.setDate(to.getDate() + 1); to.setHours(8, 0, 0, 0);
-    const s = S().sleepLog.find(x => !x.del && x.start >= +from && x.start <= +to);
+    const s = D().ev.get(k); // first lights-out between 18:00 that evening and 08:00 next morning
     const late = s ? Math.round((s.start - bed) / 60000) : null;
     return { ok: !!(S().nightDone[k] || (s && late <= 30)), late, logged: !!s || !!S().nightDone[k] };
   }
@@ -34,27 +45,28 @@ export function initInsights(c) {
 
   /* ---------- achievements ---------- */
   const BADGES = [
-    ["night3", "🌙", "Early night", "3 phone-free nights in a row", "Night-time doom-scrolling", 3, () => streak(k => night(k).ok)],
-    ["night7", "😴", "Sleep champion", "7 phone-free nights in a row", "Night-time doom-scrolling", 7, () => streak(k => night(k).ok)],
-    ["night30", "🌌", "New normal", "30 phone-free nights in a row", "Night-time doom-scrolling", 30, () => streak(k => night(k).ok)],
+    ["night3", "🌙", "Early night", "3 phone-free nights in a row", "Night-time doom-scrolling", 3, () => named("night", k => night(k).ok)],
+    ["night7", "😴", "Sleep champion", "7 phone-free nights in a row", "Night-time doom-scrolling", 7, () => named("night", k => night(k).ok)],
+    ["night30", "🌌", "New normal", "30 phone-free nights in a row", "Night-time doom-scrolling", 30, () => named("night", k => night(k).ok)],
     ["not10", "🤚", "Second thoughts", 'Choose "Not now" 10 times', "Passive, purposeless use", 10, () => S().notNow.length],
     ["not50", "🧭", "Intentional", 'Choose "Not now" 50 times', "Passive, purposeless use", 50, () => S().notNow.length],
-    ["goal3", "🎯", "On track", "3 days in a row within your daily goal", "High daily screen time", 3, () => streak(withinGoal)],
-    ["goal7", "⚖️", "Balanced week", "7 days in a row within your daily goal", "High daily screen time", 7, () => streak(withinGoal)],
+    ["goal3", "🎯", "On track", "3 days in a row within your daily goal", "High daily screen time", 3, () => named("goal", withinGoal)],
+    ["goal7", "⚖️", "Balanced week", "7 days in a row within your daily goal", "High daily screen time", 7, () => named("goal", withinGoal)],
     ["trend", "📉", "Trending down", "Log less screen time than the week before", "High daily screen time", 1, () => { const a = weekAvg(0), b = weekAvg(7); return a != null && b != null && a < b ? 1 : 0; }],
     ["focus1", "🍅", "First focus", "Finish your first focus session", "Studying pushed late", 1, () => (S().focus.length ? 1 : 0)],
-    ["focus5", "🔥", "In the zone", "Focus 5 days in a row", "Studying pushed late", 5, () => streak(focusOn)],
+    ["focus5", "🔥", "In the zone", "Focus 5 days in a row", "Studying pushed late", 5, () => named("focus", focusOn)],
     ["pomo10", "🧺", "Tomato farmer", "Finish 10 Pomodoro rounds", "Studying pushed late", 10, () => S().focus.filter(f => f.kind === "pomo").length],
-    ["cards3", "🧠", "Memory builder", "Review flashcards 3 days in a row", "Last-minute cramming", 3, () => streak(reviewedOn)],
+    ["cards3", "🧠", "Memory builder", "Review flashcards 3 days in a row", "Last-minute cramming", 3, () => named("cards", reviewedOn)],
     ["garden10", "🌳", "Gardener", "Grow 10 plants in your garden", "Scrolling instead of studying", 10, totalPlants],
-    ["mood7", "💛", "Self-aware", "Check in with your mood 7 days in a row", "Low mood going unnoticed", 7, () => streak(k => !!S().mood[k])],
+    ["mood7", "💛", "Self-aware", "Check in with your mood 7 days in a row", "Low mood going unnoticed", 7, () => named("mood", k => !!S().mood[k])],
     ["connect", "🫂", "Reached out", "Complete a Connect challenge", "Loneliness", 1, () => (S().done.some(d => /^n\d/.test(d.id)) ? 1 : 0)],
   ].map(([id, e, n, d, t, target, fn]) => ({ id, e, n, d, t, target, fn }));
-  const badgeState = () => BADGES.map(b => { const v = Math.min(b.target, b.fn()); return { ...b, v, won: !!S().badges[b.id] || v >= b.target }; });
+  const named = (id, ok) => { const m = D(); return id in m.streaks ? m.streaks[id] : (m.streaks[id] = streak(ok)); };
+  const badgeState = () => { const m = D(); return m.badges || (m.badges = BADGES.map(b => { const v = Math.min(b.target, b.fn()); return { ...b, v, won: !!S().badges[b.id] || v >= b.target }; })); };
   function checkBadges() {
     const fresh = badgeState().filter(b => b.won && !S().badges[b.id]);
     if (!fresh.length) return;
-    fresh.forEach(b => { S().badges[b.id] = Date.now(); });
+    fresh.forEach(b => { S().badges[b.id] = Date.now(); }); D().badges = null;
     c.saveLocal(); setTimeout(() => toast(`🏆 Achievement unlocked: ${fresh[0].e} ${fresh[0].n}`), 50);
   }
   function achievements() {
@@ -147,7 +159,7 @@ export function initInsights(c) {
     const t = dkey(new Date()), used = dayTotal(t), g = goal(), pct = Math.min(1, used / g), over = used > g, C = 2 * Math.PI * 52;
     const tm = c.timer(), focusing = tm && (tm.kind === "pomo" || tm.kind === "focus"), fmin = S().focus.filter(f => dkey(new Date(f.ts)) === t).reduce((a, f) => a + f.min, 0);
     const bs = badgeState(), won = bs.filter(b => b.won).length, [sd, sn] = setupCount();
-    const nights = daysBack(7).map(d => ({ d, ...night(dkey(d)) })), nStreak = streak(k => night(k).ok), gStreak = streak(withinGoal);
+    const nights = daysBack(7).map(d => ({ d, ...night(dkey(d)) })), nStreak = named("night", k => night(k).ok), gStreak = named("goal", withinGoal);
     return `${sd < sn ? `<a class="card btn block feature" href="#/tour"><span class="fi f-blue">🧭</span><span style="flex:1"><b>Take the 2-minute tour</b><br><span class="mute">See which feature solves which problem · ${sd} of ${sn} set up</span></span></a>` : ""}
     <a class="card btn block gring" href="#/usage"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="val ${over ? "over" : ""}" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg>
       <span class="gin"><b>${used ? hm(used) : "–"}</b><small>of ${hm(g)}</small></span>
@@ -160,7 +172,7 @@ export function initInsights(c) {
     <div class="grid2 tight"><a class="card btn mini green" href="#/achievements"><small>Days within goal</small><b>${gStreak} in a row</b><span class="mute">Logged days under ${hm(g)}</span></a>
       <a class="card btn mini" href="#/sleep"><small>Phone-free nights</small><b>${nStreak} in a row</b><span class="mute">Bedtime ${S().settings.bedtime}</span></a></div>
     <a class="card btn block" href="#/sleep" style="display:block;color:inherit"><div class="cardhead"><span class="fi f-amber" style="width:40px;height:40px;flex-basis:40px">🌙</span><span style="flex:1;margin-left:12px"><b>${nStreak} phone-free night${nStreak === 1 ? "" : "s"} in a row</b><br><small class="mute">Lights out by ${S().settings.bedtime} (+30 min)</small></span></div>
-      <div class="nights">${nights.map(n => `<span><i class="${n.ok ? "ok" : n.logged ? "no" : ""}">${n.ok ? "✓" : n.logged ? "✕" : "·"}</i><b>${n.d.toLocaleDateString([], { weekday: "short" })}</b><small>${n.late == null ? (n.ok ? "✓" : "") : n.late <= 0 ? "on time" : `+${n.late}m`}</small></span>`).join("")}</div></a>
+      <div class="nights">${nights.map(n => `<span><i class="${n.ok ? "ok" : n.logged ? "no" : ""}">${n.ok ? "✓" : n.logged ? "✕" : "·"}</i><b>${WEEKDAY.format(n.d)}</b><small>${n.late == null ? (n.ok ? "✓" : "") : n.late <= 0 ? "on time" : `+${n.late}m`}</small></span>`).join("")}</div></a>
     <div class="card"><div class="cardhead"><b>Last 7 days</b><small class="mute">${Object.keys(S().usage).filter(logged).length ? "" : "Not enough history yet"}</small></div>${goalBars(7, { labels: true })}<p class="mute">Dashed line: your daily goal. Only days you log are shown.</p></div>`;
   }
 

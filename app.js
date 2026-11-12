@@ -3,6 +3,7 @@ import { initStudy } from "./study.js";
 import { initWell } from "./wellbeing.js";
 import { initAuth } from "./auth.js";
 import { initInsights } from "./insights.js";
+import { initReminders } from "./reminders.js";
 import { COUNSELOR, BITES, GROUPS, CHALLENGES, MEET_TIPS, BREAKS, SAFE, FRIEND_MSGS, CHECKLIST } from "./content.js";
 
 /* ---------- storage: everything lives on this device only ---------- */
@@ -11,16 +12,17 @@ const DEFAULTS = {
   settings: { size: "m", dark: true, theme: "red", bites: 5, bedtime: "23:30", syncNotes: false, goal: 180, strict: false, haptics: true }, onboarded: false, focus: [], done: [], notes: [], week: [], checklist: { date: "", items: [] }, timer: null,
   profile: { name: "" }, pomo: { work: 25, short: 5, long: 15, rounds: 4, sound: true }, goals: [], tasks: [], decks: [], reviews: [],
   usage: {}, limits: {}, sleepLog: [], sleepStart: null, mood: {}, checkins: [], pauseTime: {}, tomb: [],
-  why: "", notNow: [], badges: {}, nightDone: {}, flags: {},
+  why: "", notNow: [], badges: {}, nightDone: {}, flags: {}, rem: { on: false, timer: true, wind: true, daily: "" },
 };
 let S = load();
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); return { ...structuredClone(DEFAULTS), ...d, settings: { ...DEFAULTS.settings, ...(d && d.settings) }, pomo: { ...DEFAULTS.pomo, ...(d && d.pomo) }, profile: { ...DEFAULTS.profile, ...(d && d.profile) } }; }
+  try { const d = JSON.parse(localStorage.getItem(KEY)); return { ...structuredClone(DEFAULTS), ...d, settings: { ...DEFAULTS.settings, ...(d && d.settings) }, pomo: { ...DEFAULTS.pomo, ...(d && d.pomo) }, rem: { ...DEFAULTS.rem, ...(d && d.rem) }, profile: { ...DEFAULTS.profile, ...(d && d.profile) } }; }
   catch { return structuredClone(DEFAULTS); }
 }
-const saveLocal = () => localStorage.setItem(KEY, JSON.stringify(S));
-const save = () => { saveLocal(); if (AU) AU.queue(); if (IN) IN.checkBadges(); };
-let AU = null, IN = null;
+let dataVer = 0; // bumps whenever data changes, so cached summaries know to refresh
+const saveLocal = () => { dataVer++; localStorage.setItem(KEY, JSON.stringify(S)); };
+const save = () => { saveLocal(); if (AU) AU.queue(); if (IN) IN.checkBadges(); if (RM) RM.sync(); };
+let AU = null, IN = null, RM = null;
 const uid = () => [...crypto.getRandomValues(new Uint8Array(6))].map(x => x.toString(16).padStart(2, "0")).join("");
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -129,7 +131,7 @@ function toast(m) { toastMsg = m; render(); setTimeout(() => { toastMsg = ""; re
 /* ---------- routing ---------- */
 const route = () => (location.hash.replace(/^#/, "") || "/").split("/").filter(Boolean);
 const go = h => { location.hash = h; };
-window.addEventListener("hashchange", () => { render(); $("#app").scrollTop = 0; });
+window.addEventListener("hashchange", () => { $("#app").scrollTop = 0; render(); }); // reset scroll first: avoids a second layout pass
 
 const TABS = [["", "home", "Home"], ["study", "study", "Study"], ["do", "do", "Do"], ["read", "read", "Read"], ["safe", "safe", "Stay safe"], ["me", "me", "Me"]];
 const header = (title, back) => `<div class="top">${back ? `<button class="back ghost" data-go="${back}" aria-label="Back">←</button>` : ""}<h1>${title}</h1></div>`;
@@ -175,6 +177,7 @@ function install() {
   ${pf !== "ios" ? `<details class="card"><summary><b>📱 iPhone / iPad steps</b></summary>${ios}</details>` : ""}${pf !== "android" ? `<details class="card"><summary><b>🤖 Android steps</b></summary>${android}</details>` : ""}${pf !== "desktop" ? `<details class="card"><summary><b>💻 Show QR code</b></summary>${desktop}</details>` : ""}`}
   <div class="card"><b>Good to know</b><p class="mute">• It opens full screen like a normal app, with its own icon.<br>• It takes almost no storage and always has the newest version.<br>• Your data stays on this phone (unless you choose to sign in).<br>• To remove it, long-press the icon and choose Remove / Uninstall.</p></div>`;
 }
+const LONGDATE = new Intl.DateTimeFormat([], { weekday: "long", month: "short", day: "numeric" });
 function greet() {
   const h = new Date().getHours(), n = S.profile.name ? `, ${esc(S.profile.name)}` : "";
   return h < 5 ? `Up late${n}? 🌙` : h < 12 ? `Good morning${n} ☀️` : h < 17 ? `Good afternoon${n} 🌤️` : h < 21 ? `Good evening${n} 🌆` : `Good night${n} 🌙`;
@@ -184,7 +187,7 @@ function home() {
   const chips = (arr, key) => `<div class="chips">${arr.map(([x, e]) => `<button class="${ci[key] === x ? "on" : ""}" data-act="ci" data-arg="${key}|${x}">${e} ${x}</button>`).join("")}</div>`;
   const sug = ci.intent ? suggestions() : "", g = ST.garden(), due = ST.dueTotal(), tasks = S.tasks.filter(t => !t.del && !t.done).length;
   const spark = BITES[Math.floor(Date.now() / 86400000) % BITES.length];
-  return `<div class="hello"><div><p class="mute" style="margin:0">${new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</p><h1 style="margin:0">${greet()}</h1></div>
+  return `<div class="hello"><div><p class="mute" style="margin:0">${LONGDATE.format(new Date())}</p><h1 style="margin:0">${greet()}</h1></div>
     <a class="avatar sm" href="#/${AU.signedIn() ? "account" : "me"}" aria-label="Me">${esc(Array.from(S.profile.name || "🙂")[0].toUpperCase())}</a></div>
   <span class="pill">${ICON.lock} Private · stays on this phone unless you sign in or post</span>
   ${!standalone() && !S.flags.installHide ? `<div class="card installcard"><a href="#/install"><span class="fi f-teal">📲</span><span><b>Install سكون on your phone</b><br><span class="mute">Add it to your home screen like an app</span></span></a><button class="ghost xbtn" data-act="installHide" aria-label="Hide install tip">✕</button></div>` : ""}
@@ -257,6 +260,7 @@ function focusPage() {
   <div class="card"><label for="goal" style="margin-top:0">One goal for this session</label><input id="goal" type="text" maxlength="100" placeholder="e.g. finish lab report intro" autocomplete="off"></div>
   <div class="sgroup">${row("🔒", "Strict mode", "No pausing until the timer ends", "", sw("strict", S.settings.strict))}</div>
   <button class="primary bigstart" data-act="startFocus">▶ Start ${focusSetup.min}m focus</button>
+  ${ctx.remNudge()}
   <div class="card warm"><b>Tip:</b> Mute notifications while you study. <a href="#/safe/notif">See the guide</a></div>`;
 }
 function focusRun() {
@@ -288,7 +292,7 @@ function play() {
     return `<div class="screen">${hero("game", "Playing", "Enjoy it. You set the limit.")}${countdown("PLAY COUNTDOWN", "Calm reminder when it ends")}<button class="ghost wide" data-act="stopTimer" data-arg="#/do">Return to Do</button></div>`;
   }
   return `${header("Play timer", "#/do")}<div class="card"><p>Set a limit before you start playing.</p><div class="chips">${[15, 30, 60, 90].map(m => `<button class="${playSetup.min === m ? "on" : ""}" data-act="pmin" data-arg="${m}">${m} min</button>`).join("")}</div>
-  <button class="primary block center" style="margin-top:16px" data-act="startPlay">Start</button></div><p class="mute">The timer runs only while سكون is open. Set a phone alarm too.</p>`;
+  <button class="primary block center" style="margin-top:16px" data-act="startPlay">Start</button></div>${ctx.remNudge()}<p class="mute">${ctx.remOn() ? "We'll notify you when it ends, even if سكون is closed." : "Without reminders, the timer only alerts you while سكون is open."}</p>`;
 }
 
 function challenges() {
@@ -420,7 +424,8 @@ function settings() {
     row("🔒", "Strict focus by default", "Sessions can't be paused or skipped (emergency stop stays)", "", sw("strict", s.strict)),
     row("📳", "Haptic feedback", "A tiny vibration when you tap (Android phones)", "", sw("haptics", s.haptics !== false)),
     row("🔔", "Chime when a round ends", "Pomodoro sound and vibration", "", `<label class="sw"><input type="checkbox" data-pomo="sound" ${S.pomo.sound ? "checked" : ""}><i></i></label>`)],
-    "Reminders only work while سكون is open. A website can't send alerts in the background or block other apps.")}
+    "سكون can't block other apps. Turn on Reminders below to get notified when timers end.")}
+  ${RM.settingsGroup(row, group, sw)}
   ${group("Account & privacy", [
     row("☁️", AU.signedIn() ? "Account" : "Create an account", AU.signedIn() ? "Backed up" : "Optional backup and sync", "#/account"),
     row("💾", "Export data", "Save your data as a JSON file", "", '<button class="ghost smallbtn" data-act="exportData">Export</button>'),
@@ -512,17 +517,17 @@ const A = {
     S.week.push({ date: d, phone: p === "" ? null : +p, sleep: s === "" ? null : +s }); save(); toast("Saved on this phone.");
   },
   delWeek: () => { if (confirm("Delete your My week data?")) { S.week.forEach(w => S.tomb.push(w.date)); S.week = []; save(); render(); } },
-  delAll: async () => { if (confirm("Delete all your data from this phone?")) { if (P.isJoined() && !(await P.leaveSilently())) return toast("Could not reach the server to delete your community posts. Try again online."); if (AU.signedIn() && !(await AU.wipeCloud())) return toast("Could not reach the server to delete your backup. Try again online."); localStorage.removeItem(KEY); S = structuredClone(DEFAULTS); applySettings(); go("#/onboard"); render(); } },
+  delAll: async () => { if (confirm("Delete all your data from this phone?")) { if (P.isJoined() && !(await P.leaveSilently())) return toast("Could not reach the server to delete your community posts. Try again online."); if (AU.signedIn() && !(await AU.wipeCloud())) return toast("Could not reach the server to delete your backup. Try again online."); localStorage.removeItem(KEY); S = structuredClone(DEFAULTS); dataVer++; applySettings(); go("#/onboard"); render(); } },
 };
 const P = initPeople({ esc, header, render, go, toast, getS: () => S, save });
 Object.assign(A, P.actions); MAIN.people = P.people; MAIN.mod = P.mod;
 const tickHooks = [];
 const ctx = {
-  get S() { return S; }, setS: v => { S = v; }, save, saveLocal, esc, header, render, go, toast, route, today, fmt, weekStart, uid, ICON, hero,
-  timer, timeLeft, startTimer, clearTimer, tickHooks, signedIn: () => !!(AU && AU.signedIn()),
+  get S() { return S; }, setS: v => { S = v; dataVer++; }, ver: () => dataVer, save, saveLocal, esc, header, render, go, toast, route, today, fmt, weekStart, uid, ICON, hero,
+  timer, timeLeft, startTimer, clearTimer, tickHooks, signedIn: () => !!(AU && AU.signedIn()), remNudge: () => (RM ? RM.nudge() : ""), remOn: () => !!(RM && RM.status() === "on"),
 };
 const ST = initStudy(ctx), WB = initWell(ctx);
-AU = initAuth(ctx); IN = initInsights(ctx);
+AU = initAuth(ctx); IN = initInsights(ctx); RM = initReminders(ctx); Object.assign(A, RM.actions);
 for (const m of [ST, WB, AU, IN]) { Object.assign(MAIN, m.routes); Object.assign(A, m.actions); }
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]"); if (g) { history.length > 1 ? history.back() : go(g.dataset.go); return; }

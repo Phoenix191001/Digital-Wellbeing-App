@@ -17,6 +17,10 @@ F1 Pause check-in · F2 Finish-line bites (24 cards) · F3 Focus sessions + play
 2. Supabase → Authentication → URL Configuration: **Site URL** `https://pause-gamma.vercel.app`, and add the same URL under **Redirect URLs**.
 3. Supabase → Authentication → Sign In / Providers → Email: decide on **Confirm email**. On = students must click a link (Supabase's built-in mailer only sends a few emails per hour; add your own SMTP for a class). Off = instant sign-up. The app handles both.
 
+## Reminders (push notifications)
+Optional, per device (Me → Settings → Reminders, or the 🔔 nudge on Pomodoro/Focus): a notification when a timer ends (even with سكون closed), a wind-down reminder 30 min before bedtime, and an optional daily check-in. `api/push.js` stores only the push address, time zone and reminder choices (Supabase `pause_kv`), and sends with Web Push (VAPID keys in Vercel env: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).
+**Turn on the every-minute sender once:** run `supabase-reminders.sql` in Supabase → SQL Editor (uses `pg_cron` + `pg_net`). On iPhone, reminders work after installing to the home screen (iOS 16.4+).
+
 ## Privacy by design
 All data is in the phone's `localStorage`. No accounts, no server, no analytics. This is why there is **no Supabase**: the spec (section 3, principle 1) forbids a server database.
 
@@ -47,4 +51,4 @@ Safe, **space-separated** (female / male, self-declared) interest circles. Anony
 
 (Upstash Redis is also supported through `KV_REST_API_URL` / `KV_REST_API_TOKEN`; Supabase takes priority if both are set.)
 
-**Tests:** `node tests/features.test.js` (Study, wellbeing, accounts with a mocked Supabase) and `node --test tests/account.test.mjs` (delete-account API, sync merge rules). Also: `node --test tests/api.test.js` (API rules, in-memory store). `TEST_SUPABASE=1` runs the same tests through the Supabase adapter against a real Postgres via `tests/pgshim.js`. With `PORT=8124 node tests/server.js` running, `node tests/ui.test.js` runs the browser flows (needs Playwright).
+**Tests:** `node --test tests/push.test.js` (reminder API), `node tests/reminders.test.js` (reminders in a browser, needs the test server). Also: `node tests/features.test.js` (Study, wellbeing, accounts with a mocked Supabase) and `node --test tests/account.test.mjs` (delete-account API, sync merge rules). Also: `node --test tests/api.test.js` (API rules, in-memory store). `TEST_SUPABASE=1` runs the same tests through the Supabase adapter against a real Postgres via `tests/pgshim.js`. With `PORT=8124 node tests/server.js` running, `node tests/ui.test.js` runs the browser flows (needs Playwright).

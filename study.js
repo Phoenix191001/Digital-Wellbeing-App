@@ -16,7 +16,7 @@ export function initStudy(c) {
 
   /* ---------- helpers ---------- */
   const focusTotal = () => S().focus.reduce((a, f) => a + f.min, 0);
-  const weekMin = id => S().focus.filter(f => f.ts >= weekStart() && (id ? f.goal === id : true)).reduce((a, f) => a + f.min, 0);
+  const weekMin = id => { const ws = weekStart(); return S().focus.filter(f => f.ts >= ws && (id ? f.goal === id : true)).reduce((a, f) => a + f.min, 0); };
   const todayMin = () => S().focus.filter(f => f.ts >= new Date().setHours(0, 0, 0, 0)).reduce((a, f) => a + f.min, 0);
   const hm = m => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? (m % 60) + "m" : ""}`.trim() : `${m}m`);
   const garden = () => { const t = focusTotal(); return { grown: Math.floor(t / 25), stage: STAGES[Math.min(3, Math.floor(((t % 25) / 25) * 4))], pct: ((t % 25) / 25) * 100, left: 25 - (t % 25) }; };
@@ -72,7 +72,7 @@ export function initStudy(c) {
       ${gs.length ? `<label>Count it toward a goal</label><div class="chips"><button class="${!setup.goal ? "on" : ""}" data-act="pomoGoal" data-arg="">None</button>${gs.map(g => `<button class="${setup.goal === g.id ? "on" : ""}" data-act="pomoGoal" data-arg="${g.id}">${g.emoji} ${esc(g.title)}</button>`).join("")}</div>` : `<p class="mute"><a href="#/goals">Add a study goal</a> to track time per subject.</p>`}
       <label class="check" style="font-weight:600;border:0"><input type="checkbox" data-pomo="sound" ${p.sound ? "checked" : ""}>🔔 Chime when a round ends</label>
       <button class="primary wide" data-act="pomoStart">Start focusing 🍅</button></div>
-    <p class="mute">Timers only run while سكون is open. Put your phone face down and come back when it chimes.</p>`;
+    ${c.remNudge()}<p class="mute">${c.remOn() ? "🔔 We'll notify you when each round ends, even if سكون is closed. Put your phone face down." : "Put your phone face down and come back when it chimes. Turn on reminders to get notified even when سكون is closed."}</p>`;
   }
   function ring(t, color) {
     const pct = Math.max(0, Math.min(1, c.timeLeft() / t.total)), C = 2 * Math.PI * 88;
